@@ -1,56 +1,74 @@
 import pandas as pd
-import re
 from io import StringIO
 
 def load_geo_series_matrix(file):
     """
-    Parses a GEO series_matrix.txt file or CSV to extract expression data,
-    multiclass labels (e.g., Control, VTE, APS), and metadata (e.g., age, sex).
+    Parses a GEO series_matrix.txt file or CSV to extract:
+    - Expression data (samples as rows, genes as columns)
+    - Multiclass labels (e.g. 0=Control, 1=VTE, 2=APS)
+    - Metadata for stratification (age, sex, etc.)
     """
+
     # Read file content
     content = file.read()
     if isinstance(content, bytes):
         content = content.decode("utf-8")
     lines = content.splitlines()
 
-    # Identify start and end of the expression matrix
+    # Try to detect GEO matrix structure
     try:
         start_idx = lines.index("!series_matrix_table_begin") + 1
         end_idx = lines.index("!series_matrix_table_end")
         matrix_lines = lines[start_idx:end_idx]
-        df = pd.read_csv(StringIO("\n".join(matrix_lines)), sep="\t")
+
+        # Load without assuming header row
+        df = pd.read_csv(StringIO("\n".join(matrix_lines)), sep="\t", header=None)
+
+        # Set gene names as first column
+        df.columns = ["ID_REF"] + [f"Sample_{i}" for i in range(1, df.shape[1])]
+
     except ValueError:
-        # If markers not found, assume CSV format
+        # If no matrix markers found, treat it as regular CSV
         file.seek(0)
         df = pd.read_csv(file)
-        labels = [0] * df.shape[0]
-        metadata = pd.DataFrame()
-        return df, labels, metadata
+        return df, [0] * df.shape[0], pd.DataFrame()
 
-    # Extract sample metadata lines
-    metadata_lines = [line for line in lines if line.startswith("!Sample_characteristics_ch1")]
+    # Drop gene ID column and transpose so samples = rows
+    data = df.drop(columns=["ID_REF"], errors="ignore").T
+    data.columns = df["ID_REF"].values
+
+    # Initialize default labels
+    labels = [-1] * data.shape[0]
+
+    # Parse metadata from characteristics_ch1
+    metadata_lines = [line for line in lines if "characteristics_ch1" in line.lower()]
     metadata_dict = {}
+
     for line in metadata_lines:
         parts = line.strip().split("\t")
-        key = parts[0].replace("!Sample_characteristics_ch1", "").strip()
+        key = parts[0].replace("!Sample_characteristics_ch1", "").strip().lower()
         values = parts[1:]
+
+        if not key:
+            key = "condition"
+
         metadata_dict[key] = values
 
-    # Convert metadata_dict to DataFrame
+        # If the line contains disease conditions, assign multiclass labels
+        if "condition" in key:
+            labels = []
+            for val in values:
+                val = val.lower()
+                if "control" in val:
+                    labels.append(0)
+                elif "vte" in val:
+                    labels.append(1)
+                elif "aps" in val:
+                    labels.append(2)
+                else:
+                    labels.append(-1)
+
+    # Convert metadata dict to DataFrame
     metadata = pd.DataFrame(metadata_dict)
 
-    # Transpose expression data so samples are rows
-    if "ID_REF" in df.columns:
-        df = df.drop(columns=["ID_REF"])
-    df = df.transpose()
-    df.columns = df.iloc[0]
-    df = df.drop(df.index[0])
-    df.reset_index(drop=True, inplace=True)
-
-    # Generate labels based on condition
-    conditions = metadata.iloc[:, 0].str.lower()
-    label_map = {"control": 0, "vte": 1, "aps": 2}
-    labels = conditions.map(lambda x: next((label_map[key] for key in label_map if key in x), -1))
-    labels = labels.fillna(-1).astype(int).tolist()
-
-    return df, labels, metadata
+    return data, labels, metadata
