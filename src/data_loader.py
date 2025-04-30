@@ -6,31 +6,27 @@ def extract_expression_and_symbols(file_lines):
     end_idx = file_lines.index("!series_matrix_table_end")
     matrix_lines = file_lines[start_idx:end_idx]
 
-    # Read matrix
     df = pd.read_csv(StringIO("\n".join(matrix_lines)), sep="\t")
+    df = df.set_index("ID_REF" if "ID_REF" in df.columns else df.columns[0])
 
-    # Try to use probe ID as index
-    if "ID_REF" in df.columns:
-        df = df.set_index("ID_REF")
-    else:
-        df = df.set_index(df.columns[0])
-
-    # Attempt gene symbol mapping (if annotation block exists)
+    # Attempt gene symbol mapping using annotation block
     if "!annotation_table_start" in file_lines:
         try:
             annot_start = file_lines.index("!annotation_table_start") + 1
             annot_end = file_lines.index("!annotation_table_end")
             annotation = pd.read_csv(StringIO("\n".join(file_lines[annot_start:annot_end])), sep="\t")
+
             if "ID" in annotation.columns and "Gene Symbol" in annotation.columns:
                 symbol_map = dict(zip(annotation["ID"], annotation["Gene Symbol"]))
-                df.index = df.index.map(lambda x: symbol_map.get(x, x))
-        except Exception:
-            pass  # fallback if mapping fails
+                df.index = df.index.map(lambda x: symbol_map.get(x, x))  # Replace probes with symbols
+        except Exception as e:
+            print(f"[Annotation Warning] {e}")
 
-    # Transpose to samples as rows, genes as columns
-    df = df.T
-    return df
+    # Drop any null or duplicated index
+    df = df[~df.index.isna()]
+    df = df.loc[~df.index.duplicated(keep='first')]
 
+    return df.T  # Transpose to have samples as rows
 
 def extract_labels_and_metadata(file_lines):
     meta_lines = [l for l in file_lines if "characteristics_ch1" in l.lower()]
@@ -49,11 +45,9 @@ def extract_labels_and_metadata(file_lines):
     metadata_df = pd.DataFrame(parsed)
     metadata_df.index.name = "Sample"
 
-    # Assign labels based on presence of known keywords
+    # Assign binary labels
     labels = []
-
     if "stress" in metadata_df.columns:
-        # Special case: mouse file like GSE125965
         for val in metadata_df["stress"].str.lower():
             if "nodvt" in val:
                 labels.append(0)
@@ -62,7 +56,6 @@ def extract_labels_and_metadata(file_lines):
             else:
                 labels.append(-1)
     else:
-        # General case: human dataset like GSE19151
         for i in range(metadata_df.shape[0]):
             row = metadata_df.iloc[i].astype(str).str.lower().str.strip()
             label = -1
@@ -76,7 +69,6 @@ def extract_labels_and_metadata(file_lines):
             labels.append(label)
 
     return labels, metadata_df
-
 
 def load_geo_series_matrix(file):
     content = file.read()
