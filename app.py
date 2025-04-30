@@ -18,10 +18,14 @@ if uploaded_file is not None:
             data, labels, metadata = load_geo_series_matrix(uploaded_file)
             st.success("✅ File loaded")
 
-            # Show basic debug info
+            # 🧪 Show debug info
             st.write("📊 Data shape (rows = samples, cols = genes):", data.shape)
             st.write("🔢 Number of labels:", len(labels))
+            st.write("🧬 Unique label classes:", set(labels))
 
+            if len(set(labels)) < 2:
+                st.warning("⚠️ Only one class detected in labels. Classifier may fail.")
+        
         with st.spinner("Training model..."):
             model, acc, X_test, y_test = train_random_forest(data, labels)
             st.success(f"✅ Model trained (accuracy: {acc:.2f})")
