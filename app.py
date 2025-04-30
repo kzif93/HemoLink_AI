@@ -7,6 +7,7 @@ from src.preprocessing import clean_and_scale
 from src.feature_engineering import reduce_low_variance_features
 
 import numpy as np
+import pandas as pd
 
 st.set_page_config(page_title="HemoLink_AI", layout="wide")
 st.title("🧠 HemoLink_AI: Predict Clinical Translatability")
@@ -42,13 +43,32 @@ if uploaded_file is not None:
             if len(set(labels)) < 2:
                 st.warning("⚠️ Only one class detected in labels. Classifier may fail.")
 
-        # Preprocessing
         data = clean_and_scale(data)
         data = reduce_low_variance_features(data, threshold=0.01)
         st.write("🔍 Features after preprocessing:", data.shape[1])
 
+        from sklearn.model_selection import train_test_split
+        X_train, X_test, y_train, y_test = train_test_split(data, labels, test_size=0.2, random_state=42)
+
+        # ✅ Align metadata to X_test
+        if not metadata.empty:
+            metadata.index = data.index
+            metadata_test = metadata.loc[X_test.index]
+
+            # Let user filter by any metadata column
+            selected_column = st.selectbox("📊 Select metadata column to filter SHAP:", metadata.columns)
+            if selected_column:
+                options = metadata_test[selected_column].dropna().unique().tolist()
+                selected_value = st.selectbox(f"🎯 Choose value from '{selected_column}':", options)
+
+                # Apply filter to SHAP data
+                mask = metadata_test[selected_column] == selected_value
+                X_test = X_test[mask]
+                y_test = [label for i, label in enumerate(y_test) if mask.iloc[i]]
+                st.success(f"🎉 Showing SHAP for {selected_column} = '{selected_value}' ({len(X_test)} samples)")
+
         with st.spinner("Training model..."):
-            model, acc, X_test, y_test = train_random_forest(data, labels)
+            model, acc, _, _ = train_random_forest(data, labels)
             st.success(f"✅ Model trained (accuracy: {acc:.2f})")
 
         with st.spinner("Predicting..."):
