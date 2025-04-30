@@ -14,11 +14,28 @@ uploaded_file = st.file_uploader(
 
 if uploaded_file is not None:
     try:
+        # Read file content before passing to loader
+        file_content = uploaded_file.read()
+        if isinstance(file_content, bytes):
+            decoded_content = file_content.decode("utf-8")
+        else:
+            decoded_content = file_content
+
+        # Preview raw metadata lines for debugging
+        meta_lines = [line for line in decoded_content.splitlines() if "characteristics_ch1" in line.lower()]
+        st.write("🧾 Raw metadata lines:")
+        st.text("\n".join(meta_lines))
+
+        # Re-create uploaded file for parsing
+        from io import BytesIO
+        uploaded_file = BytesIO(file_content)
+
+        # Load data + labels
         with st.spinner("Loading file..."):
             data, labels, metadata = load_geo_series_matrix(uploaded_file)
             st.success("✅ File loaded")
 
-            # 🧪 Show debug info
+            # Show debug info
             st.write("📊 Data shape (rows = samples, cols = genes):", data.shape)
             st.write("🔢 Number of labels:", len(labels))
             st.write("🧬 Unique label classes:", set(labels))
