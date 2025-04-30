@@ -8,18 +8,28 @@ def map_mouse_to_human_genes(mouse_genes):
     mapping = {}
     for entry in query:
         if 'homologene' in entry and isinstance(entry['homologene'], dict):
-            human_homologs = entry['homologene'].get('genes', [])
-            for sp_id, gene_symbol in human_homologs:
-                if sp_id == 9606:  # human NCBI tax ID
+            for species_id, gene_symbol in entry['homologene'].get('genes', []):
+                if species_id == 9606:  # Human NCBI Taxonomy ID
                     mapping[entry['query']] = gene_symbol
                     break
     return mapping
 
 def align_cross_species_data(mouse_df, human_df):
+    # Map mouse gene names to human
     mapping = map_mouse_to_human_genes(mouse_df.columns.tolist())
-    renamed_mouse = mouse_df.rename(columns=mapping)
-    shared_genes = list(set(renamed_mouse.columns) & set(human_df.columns))
 
+    # Rename mouse genes using human homologs
+    renamed_mouse = mouse_df.rename(columns=mapping)
+
+    # Drop unmapped (NaN) columns
+    renamed_mouse = renamed_mouse.loc[:, renamed_mouse.columns.notna()]
+    human_df = human_df.loc[:, human_df.columns.notna()]
+
+    # Keep only genes shared between mouse and human after mapping
+    shared_genes = list(set(renamed_mouse.columns) & set(human_df.columns))
+    shared_genes = [gene for gene in shared_genes if isinstance(gene, str) and gene.strip() != ""]
+
+    # Final aligned dataframes
     mouse_filtered = renamed_mouse[shared_genes]
     human_filtered = human_df[shared_genes]
 
