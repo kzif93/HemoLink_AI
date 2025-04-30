@@ -5,46 +5,44 @@ def load_geo_series_matrix(file):
     """
     Parses a GEO series_matrix.txt file or CSV to extract:
     - Expression data (samples as rows, genes as columns)
-    - Multiclass labels (e.g. 0=Control, 1=VTE, 2=APS)
-    - Metadata for stratification (age, sex, etc.)
+    - Multiclass labels (0=control, 1=VTE, 2=APS)
+    - Metadata (e.g. age, sex, etc.)
     """
 
-    # Read file content
+    # Read content from uploaded file
     content = file.read()
     if isinstance(content, bytes):
         content = content.decode("utf-8")
     lines = content.splitlines()
 
-    # Try to detect GEO matrix structure
+    # Try to detect GEO matrix
     try:
         start_idx = lines.index("!series_matrix_table_begin") + 1
         end_idx = lines.index("!series_matrix_table_end")
         matrix_lines = lines[start_idx:end_idx]
 
-        # Load without assuming header row
+        # Read as no-header, and manually define header
         df = pd.read_csv(StringIO("\n".join(matrix_lines)), sep="\t", header=None)
-
-        # Set gene names as first column
         df.columns = ["ID_REF"] + [f"Sample_{i}" for i in range(1, df.shape[1])]
 
+        # Transpose: rows = samples, columns = genes
+        data = df.set_index("ID_REF").T
+        data = data.apply(pd.to_numeric, errors="coerce")
+        data = data.fillna(0)
+
     except ValueError:
-        # If no matrix markers found, treat it as regular CSV
+        # Fallback: assume user uploaded CSV
         file.seek(0)
         df = pd.read_csv(file)
         return df, [0] * df.shape[0], pd.DataFrame()
 
-    # Drop gene ID column and transpose so samples = rows
-    data = df.drop(columns=["ID_REF"], errors="ignore").T
-    data.columns = df["ID_REF"].values
-
-    # Initialize default labels
-    labels = [-1] * data.shape[0]
-
-    # Parse metadata from characteristics_ch1
-    metadata_lines = [line for line in lines if "characteristics_ch1" in line.lower()]
+    # Extract metadata lines
+    meta_lines = [l for l in lines if "characteristics_ch1" in l.lower()]
     metadata_dict = {}
 
-    for line in metadata_lines:
+    labels = [-1] * data.shape[0]  # default unknown labels
+
+    for line in meta_lines:
         parts = line.strip().split("\t")
         key = parts[0].replace("!Sample_characteristics_ch1", "").strip().lower()
         values = parts[1:]
@@ -54,7 +52,7 @@ def load_geo_series_matrix(file):
 
         metadata_dict[key] = values
 
-        # If the line contains disease conditions, assign multiclass labels
+        # Assign multiclass labels based on 'condition' key
         if "condition" in key:
             labels = []
             for val in values:
@@ -68,7 +66,5 @@ def load_geo_series_matrix(file):
                 else:
                     labels.append(-1)
 
-    # Convert metadata dict to DataFrame
     metadata = pd.DataFrame(metadata_dict)
-
     return data, labels, metadata
