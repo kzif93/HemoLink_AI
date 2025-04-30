@@ -1,11 +1,19 @@
 import pandas as pd
-from gprofiler import GProfiler
+import mygene
 
 def map_mouse_to_human_genes(mouse_genes):
-    gp = GProfiler(return_dataframe=True)
-    res = gp.convert(organism="mmusculus", query=mouse_genes, target="hsapiens")
-    mapped = res[['incoming', 'name']].dropna().drop_duplicates()
-    return mapped.set_index("incoming")["name"].to_dict()
+    mg = mygene.MyGeneInfo()
+    query = mg.querymany(mouse_genes, scopes='symbol', fields='homologene', species='mouse')
+
+    mapping = {}
+    for entry in query:
+        if 'homologene' in entry and isinstance(entry['homologene'], dict):
+            human_homologs = entry['homologene'].get('genes', [])
+            for sp_id, gene_symbol in human_homologs:
+                if sp_id == 9606:  # human NCBI tax ID
+                    mapping[entry['query']] = gene_symbol
+                    break
+    return mapping
 
 def align_cross_species_data(mouse_df, human_df):
     mapping = map_mouse_to_human_genes(mouse_df.columns.tolist())
