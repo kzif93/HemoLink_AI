@@ -43,21 +43,20 @@ if uploaded_file is not None:
             if len(set(labels)) < 2:
                 st.warning("⚠️ Only one class detected in labels. Classifier may fail.")
 
-        # Clean + reduce
+        # Clean and reduce
         data = clean_and_scale(data)
         data = reduce_low_variance_features(data, threshold=0.01)
         st.write("🔍 Features after preprocessing:", data.shape[1])
 
-        # Split
+        # Train-test split
         from sklearn.model_selection import train_test_split
         X_train, X_test, y_train, y_test = train_test_split(data, labels, test_size=0.2, random_state=42)
 
-        # 🔍 Metadata filtering UI
+        # Metadata filter UI
         if not metadata.empty:
             metadata.index = data.index
             metadata_test = metadata.loc[X_test.index]
 
-            # Debug print
             st.write("📋 Metadata preview:")
             st.dataframe(metadata.head())
             st.write("🧪 Metadata columns:", metadata.columns.tolist())
@@ -75,17 +74,22 @@ if uploaded_file is not None:
         else:
             st.warning("⚠️ No metadata available for filtering.")
 
-        # Train and show
+        # Train model on full data
         with st.spinner("Training model..."):
             model, acc, _, _ = train_random_forest(data, labels)
             st.success(f"✅ Model trained (accuracy: {acc:.2f})")
 
+        # Prediction
         with st.spinner("Predicting..."):
             predict_and_display(model, X_test, y_test)
 
+        # SHAP explainability
         with st.spinner("Explaining predictions..."):
             st.write("🛠 SHAP input feature count:", len(X_test.columns))
-            show_shap_summary(model, X_test)
+            if len(set(y_test)) > 1:
+                show_shap_summary(model, X_test)
+            else:
+                st.warning("⚠️ Cannot show SHAP — only one class present in filtered test set.")
 
     except Exception as e:
         st.error(f"❌ Error: {e}")
