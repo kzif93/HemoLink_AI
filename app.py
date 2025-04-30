@@ -2,7 +2,7 @@ import streamlit as st
 from src.data_loader import load_geo_series_matrix
 from src.model_training import train_random_forest
 from src.prediction import predict_and_display
-from src.explainability import show_shap_comparison
+from src.explainability import show_shap_summary, show_shap_comparison
 from src.preprocessing import clean_and_scale
 from src.feature_engineering import reduce_low_variance_features
 
@@ -44,23 +44,26 @@ if uploaded_file is not None:
             if len(set(labels)) < 2:
                 st.warning("⚠️ Only one class detected in labels. Classifier may fail.")
 
+        # Clean and reduce
         data = clean_and_scale(data)
         data = reduce_low_variance_features(data, threshold=0.01)
         st.write("🔍 Features after preprocessing:", data.shape[1])
 
+        # Split
         X_train, X_test, y_train, y_test = train_test_split(data, labels, test_size=0.2, random_state=42)
 
-        if not metadata.empty:
-            metadata.index = data.index
-            metadata_test = metadata.loc[X_test.index]
+        metadata.index = data.index
+        metadata_test = metadata.loc[X_test.index]
 
-            st.write("📋 Metadata preview:")
-            st.dataframe(metadata.head())
-
+        # Subgroup SHAP
+        if not metadata.empty and len(metadata.columns) > 0:
             selected_column = st.selectbox("📊 Select metadata column for subgroup SHAP:", metadata.columns)
+
             if selected_column:
-                unique_values = metadata_test[selected_column].dropna().unique().tolist()
-                selected_values = st.multiselect(f"🎯 Choose TWO values from '{selected_column}':", unique_values)
+                options = metadata_test[selected_column].dropna().unique().tolist()
+                selected_values = st.multiselect(
+                    f"🎯 Choose TWO values from '{selected_column}':", options
+                )
 
                 if len(selected_values) == 2:
                     subgroup_a = selected_values[0]
@@ -73,8 +76,6 @@ if uploaded_file is not None:
                     X_b = X_test[mask_b]
 
                     st.success(f"🎉 Comparing SHAP for '{subgroup_a}' vs '{subgroup_b}'")
-        else:
-            st.warning("⚠️ No metadata available for filtering.")
 
         with st.spinner("Training model..."):
             model, acc, _, _ = train_random_forest(data, labels)
@@ -83,11 +84,16 @@ if uploaded_file is not None:
         with st.spinner("Predicting..."):
             predict_and_display(model, X_test, y_test)
 
-        if len(selected_values) == 2 and len(X_a) > 1 and len(X_b) > 1:
-            with st.spinner("Explaining subgroup SHAP..."):
-                show_shap_comparison(model, {subgroup_a: X_a, subgroup_b: X_b})
-        else:
-            st.info("📌 Select two subgroups with enough samples to show SHAP.")
+        with st.spinner("Explaining predictions..."):
+            if 'X_a' in locals() and 'X_b' in locals() and len(X_a) > 1 and len(X_b) > 1:
+                show_shap_comparison(model, {
+                    subgroup_a: X_a,
+                    subgroup_b: X_b
+                })
+            elif len(set(y_test)) > 1:
+                show_shap_summary(model, X_test)
+            else:
+                st.warning("⚠️ Cannot show SHAP — only one class present in test set.")
 
     except Exception as e:
         st.error(f"❌ Error: {e}")
