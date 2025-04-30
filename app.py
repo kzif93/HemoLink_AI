@@ -17,7 +17,10 @@ if uploaded_file is not None:
         with st.spinner("Loading file..."):
             data, labels, metadata = load_geo_series_matrix(uploaded_file)
             st.success("✅ File loaded")
-            st.write("Preview:", data.head())
+
+            # Show basic debug info
+            st.write("📊 Data shape (rows = samples, cols = genes):", data.shape)
+            st.write("🔢 Number of labels:", len(labels))
 
         with st.spinner("Training model..."):
             model, acc, X_test, y_test = train_random_forest(data, labels)
@@ -33,6 +36,6 @@ if uploaded_file is not None:
         st.dataframe(metadata)
 
     except Exception as e:
-        st.error(f"Error: {e}")
+        st.error(f"❌ Error: {e}")
 else:
-    st.info("👈 Upload a `.txt` or `.csv` biomarker matrix to start.")
+    st.info("👈 Upload a `.txt` or `.csv` biomarker matrix to begin.")
