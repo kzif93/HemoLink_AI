@@ -1,55 +1,65 @@
 import pandas as pd
 from io import StringIO
 
-def load_geo_series_matrix(file):
-    content = file.read()
-    if isinstance(content, bytes):
-        content = content.decode("utf-8")
-    lines = content.splitlines()
+def extract_expression_and_symbols(file_lines):
+    start_idx = file_lines.index("!series_matrix_table_begin") + 1
+    end_idx = file_lines.index("!series_matrix_table_end")
+    matrix_lines = file_lines[start_idx:end_idx]
 
-    # Load matrix
-    try:
-        start_idx = lines.index("!series_matrix_table_begin") + 1
-        end_idx = lines.index("!series_matrix_table_end")
-        matrix_lines = lines[start_idx:end_idx]
-        df = pd.read_csv(StringIO("\n".join(matrix_lines)), sep="\t", header=None)
-        df.columns = ["ID_REF"] + [f"Sample_{i}" for i in range(1, df.shape[1])]
-        data = df.set_index("ID_REF").T
-        data = data.apply(pd.to_numeric, errors="coerce").fillna(0)
-    except ValueError:
-        file.seek(0)
-        df = pd.read_csv(file)
-        return df, [0] * df.shape[0], pd.DataFrame()
+    # Read matrix
+    df = pd.read_csv(StringIO("\n".join(matrix_lines)), sep="\t")
 
-    sample_ids = data.index.tolist()
-    metadata_rows = []
+    # Try to map probe IDs to gene symbols if available
+    if "ID_REF" in df.columns:
+        df = df.set_index("ID_REF")
+    else:
+        df = df.set_index(df.columns[0])
 
-    for line in lines:
-        if "characteristics_ch1" in line.lower():
-            parts = [val.strip().strip('"') for val in line.strip().split("\t")[1:]]
-            metadata_rows.append(parts)
+    # Attempt gene symbol extraction from annotation if available
+    gene_map = {}
+    for line in file_lines:
+        if line.startswith("!annotation_table_start"):
+            break
+    else:
+        line = None
 
-    metadata_df = pd.DataFrame(metadata_rows).T
-    metadata_df.columns = [f"field_{i}" for i in range(metadata_df.shape[1])]
-    metadata_df.index = sample_ids
+    # If annotation table exists, try to map probes to symbols
+    if "!annotation_table_start" in file_lines:
+        try:
+            annot_start = file_lines.index("!annotation_table_start") + 1
+            annot_end = file_lines.index("!annotation_table_end")
+            annotation = pd.read_csv(StringIO("\n".join(file_lines[annot_start:annot_end])), sep="\t")
+            if "ID" in annotation.columns and "Gene Symbol" in annotation.columns:
+                symbol_map = dict(zip(annotation["ID"], annotation["Gene Symbol"]))
+                df = df.rename(columns=lambda x: x.strip())
+                df.index = df.index.map(lambda x: symbol_map.get(x, x))  # Map if exists, keep original if not
+        except Exception as e:
+            pass  # If anything goes wrong, fall back to default probe IDs
 
-    # Parse key-value pairs from metadata
+    # Transpose: samples as rows, genes as columns
+    df = df.T
+    return df
+
+def extract_labels_and_metadata(file_lines):
+    meta_lines = [l for l in file_lines if "characteristics_ch1" in l.lower()]
+    labels = []
     parsed = {}
-    for col in metadata_df.columns:
-        split_values = metadata_df[col].str.extract(r'(?i)([\w\s\-]+):\s*(.*)')
+
+    for i, line in enumerate(meta_lines):
+        parts = [val.strip().strip('"') for val in line.strip().split("\t")[1:]]
+        split_values = pd.Series(parts).str.extract(r'(?i)([\w\s\-]+):\s*(.*)')
         keys = split_values[0].str.strip().str.lower()
         vals = split_values[1].str.strip()
         for key in keys.unique():
             if pd.notna(key):
-                parsed[key] = vals[keys == key].reset_index(drop=True)
+                parsed.setdefault(key, []).append(vals[keys == key].values[0])
 
-    metadata_parsed = pd.DataFrame(parsed)
-    metadata_parsed.index = sample_ids
+    metadata_df = pd.DataFrame(parsed)
+    metadata_df.index.name = "Sample"
 
-    # Assign labels
-    labels = []
-    for i in range(len(metadata_parsed)):
-        row = metadata_parsed.iloc[i].astype(str).str.lower().str.strip()
+    # Assign label
+    for i in range(metadata_df.shape[0]):
+        row = metadata_df.iloc[i].astype(str).str.lower().str.strip()
         label = -1
         for val in row:
             if "control" in val:
@@ -60,4 +70,15 @@ def load_geo_series_matrix(file):
                 label = 2
         labels.append(label)
 
-    return data, labels, metadata_parsed
+    return labels, metadata_df
+
+def load_geo_series_matrix(file):
+    content = file.read()
+    if isinstance(content, bytes):
+        content = content.decode("utf-8")
+    lines = content.splitlines()
+
+    expression_df = extract_expression_and_symbols(lines)
+    labels, metadata = extract_labels_and_metadata(lines)
+
+    return expression_df, labels, metadata
