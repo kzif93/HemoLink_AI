@@ -7,11 +7,15 @@ def parse_annotation_file(annot_file):
         with gzip.open(annot_file, "rt", encoding="utf-8") as f:
             lines = f.readlines()
         df = pd.read_csv(StringIO("".join(lines)), sep="\t", low_memory=False)
+
         if "ID" in df.columns and "Gene Symbol" in df.columns:
             mapping = dict(zip(df["ID"], df["Gene Symbol"]))
+            print(f"[Annotation] Mapped {len(mapping)} probe IDs to gene symbols.")
             return mapping
+        else:
+            print("[Annotation] File found but 'ID' or 'Gene Symbol' column is missing.")
     except Exception as e:
-        print(f"[Annotation Error] Could not parse .annot.gz file: {e}")
+        print(f"[Annotation Error] Failed to parse .annot.gz: {e}")
     return {}
 
 def extract_expression_and_symbols(file_lines, symbol_map=None):
@@ -27,7 +31,7 @@ def extract_expression_and_symbols(file_lines, symbol_map=None):
         df = df[~df.index.isna()]
         df = df.loc[~df.index.duplicated(keep='first')]
 
-    return df.T
+    return df.T  # samples = rows, genes = columns
 
 def extract_labels_and_metadata(file_lines):
     meta_lines = [l for l in file_lines if "characteristics_ch1" in l.lower()]
@@ -81,7 +85,7 @@ def load_geo_series_matrix(file, annot_file=None):
     if annot_file is not None:
         symbol_map = parse_annotation_file(annot_file)
         if not symbol_map:
-            print("⚠️ No gene symbol mapping found. Will keep probe IDs.")
+            print("⚠️ Annotation file loaded but mapping failed.")
     else:
         print("📎 No annotation file provided. Using raw probe IDs.")
 
