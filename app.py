@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import shap
 from sklearn.model_selection import train_test_split
+
 from src.data_loader import load_geo_series_matrix
 from src.model_training import train_random_forest
 from src.prediction import predict_and_display
@@ -17,22 +18,20 @@ st.image("images/hemolink_logo.png", width=300)
 st.title("🧠 HemoLink_AI: Predict Clinical Translatability")
 
 # ============================
-# 📂 Main Upload Section (Human)
+# 📂 Human Upload Section
 # ============================
-st.markdown("### 📂 Upload Human GEO `.txt` or biomarker `.csv` file")
+st.markdown("### 📂 Upload Human GEO `.txt` file + annotation")
 
-uploaded_file = st.file_uploader("Upload GEO expression matrix (.txt or .csv):", type=["txt", "csv"], key="main")
-annot_file = st.file_uploader("📎 Upload Platform Annotation File (.annot.gz, optional)", type=["gz"])
+uploaded_file = st.file_uploader("Upload Human GEO expression matrix (.txt):", type=["txt"], key="main")
+annot_file = st.file_uploader("📎 Upload Human Platform Annotation (.annot.gz)", type=["gz"], key="human_annot")
 
 if uploaded_file is not None:
     try:
-        file_content = uploaded_file.read()
-        if isinstance(file_content, bytes):
-            file_content = file_content.decode("utf-8", errors="ignore")
         from io import BytesIO
-        uploaded_file = BytesIO(file_content.encode())
+        file_content = uploaded_file.read()
+        uploaded_file = BytesIO(file_content)
 
-        with st.spinner("Loading..."):
+        with st.spinner("Loading human dataset..."):
             data, labels, metadata = load_geo_series_matrix(uploaded_file, annot_file)
             st.success("✅ File loaded")
 
@@ -115,20 +114,21 @@ if uploaded_file is not None:
 st.markdown("## 🔁 Cross-Species Modeling (Mouse ➜ Human)")
 
 mouse_file = st.file_uploader("🐭 Upload Mouse GEO `.txt`", type=["txt"], key="mouse")
-human_file = st.file_uploader("👤 Upload Human GEO `.txt`", type=["txt"], key="human")
-human_annot = st.file_uploader("🧬 Upload Human .annot.gz", type=["gz"], key="human_annot")
+mouse_annot = st.file_uploader("📎 Upload Mouse Platform Annotation (.annot.gz)", type=["gz"], key="mouse_annot")
+human_file = st.file_uploader("👤 Upload Human GEO `.txt`", type=["txt"], key="human_cross")
+human_annot = st.file_uploader("📎 Upload Human Platform Annotation (.annot.gz)", type=["gz"], key="human_cross_annot")
 
 if mouse_file and human_file:
     try:
-        st.markdown("### 🔍 Aligning genes...")
-        mouse_data, mouse_labels, _ = load_geo_series_matrix(mouse_file)
-        human_data, human_labels, _ = load_geo_series_matrix(human_file, human_annot)
-        mouse_data, human_data, shared_genes = align_cross_species_data(mouse_data, human_data)
+        with st.spinner("🧬 Aligning genes..."):
+            mouse_data, mouse_labels, _ = load_geo_series_matrix(mouse_file, mouse_annot)
+            human_data, human_labels, _ = load_geo_series_matrix(human_file, human_annot)
+            mouse_data, human_data, shared_genes = align_cross_species_data(mouse_data, human_data)
 
         st.write("✅ Shared genes:", len(shared_genes))
         st.write("🐭 Mouse shape:", mouse_data.shape)
         st.write("👤 Human shape:", human_data.shape)
-        st.write("🧬 Sample genes:", shared_genes[:10])
+        st.write("🧬 Sample shared genes:", shared_genes[:10])
 
         if len(shared_genes) == 0:
             st.error("❌ No shared genes found. Likely due to unmapped probe IDs.")
