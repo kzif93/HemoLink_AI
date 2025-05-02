@@ -1,23 +1,19 @@
-
 import pandas as pd
 import gzip
 
 def load_annotation_file(annot_file):
     try:
-        # Try to decode uploaded gzip or text file
         if annot_file.name.endswith(".gz"):
             with gzip.open(annot_file, "rt", encoding="utf-8", errors="ignore") as f:
                 df = pd.read_csv(f, sep="\t", comment="#", low_memory=False)
         else:
             df = pd.read_csv(annot_file, sep="\t", comment="#", low_memory=False)
 
-        # Must have these columns
         candidates = [col for col in df.columns if "ID" in col.upper()]
         if not candidates:
             raise ValueError("No ID_REF or probe ID column found in annotation file.")
 
-        # Pick best mapping
-        id_col = [col for in df.columns if "ID" in col.upper()][0]
+        id_col = [col for col in df.columns if "ID" in col.upper()][0]
         symbol_col = next((c for c in df.columns if "GENE SYMBOL" in c.upper() or "GENE" in c.upper()), None)
 
         if symbol_col is None:
