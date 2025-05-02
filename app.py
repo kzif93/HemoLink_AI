@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 from src.data_loader import load_geo_series_matrix
@@ -72,10 +71,10 @@ st.markdown("---")
 st.subheader("🧠 Cross-Species Modeling with Annotation")
 
 mouse_expr_file = st.file_uploader("🐭 Upload mouse GEO matrix (.txt)", type=["txt"], key="mouse_expr")
-mouse_annot_file = st.file_uploader("🧬 Upload mouse annotation (.annot.gz)", type=["gz"], key="mouse_annot")
+mouse_annot_file = st.file_uploader("🧬 Upload mouse annotation (.annot.txt or .annot.gz)", type=["txt", "gz"], key="mouse_annot")
 
 human_expr_file = st.file_uploader("👤 Upload human GEO matrix (.txt)", type=["txt"], key="human_expr")
-human_annot_file = st.file_uploader("🧬 Upload human annotation (.annot.gz)", type=["gz"], key="human_annot")
+human_annot_file = st.file_uploader("🧬 Upload human annotation (.annot.txt or .annot.gz)", type=["txt", "gz"], key="human_annot")
 
 if mouse_expr_file and mouse_annot_file and human_expr_file and human_annot_file:
     try:
