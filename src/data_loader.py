@@ -1,7 +1,20 @@
 import pandas as pd
 from io import StringIO
+import gzip
 
-def extract_expression_and_symbols(file_lines):
+def parse_annotation_file(annot_file):
+    try:
+        with gzip.open(annot_file, "rt", encoding="utf-8") as f:
+            lines = f.readlines()
+        df = pd.read_csv(StringIO("".join(lines)), sep="\t", low_memory=False)
+        if "ID" in df.columns and "Gene Symbol" in df.columns:
+            mapping = dict(zip(df["ID"], df["Gene Symbol"]))
+            return mapping
+    except Exception as e:
+        print(f"[Annotation Error] Could not parse .annot.gz file: {e}")
+    return {}
+
+def extract_expression_and_symbols(file_lines, symbol_map=None):
     start_idx = file_lines.index("!series_matrix_table_begin") + 1
     end_idx = file_lines.index("!series_matrix_table_end")
     matrix_lines = file_lines[start_idx:end_idx]
@@ -9,24 +22,12 @@ def extract_expression_and_symbols(file_lines):
     df = pd.read_csv(StringIO("\n".join(matrix_lines)), sep="\t")
     df = df.set_index("ID_REF" if "ID_REF" in df.columns else df.columns[0])
 
-    # Attempt gene symbol mapping using annotation block
-    if "!annotation_table_start" in file_lines:
-        try:
-            annot_start = file_lines.index("!annotation_table_start") + 1
-            annot_end = file_lines.index("!annotation_table_end")
-            annotation = pd.read_csv(StringIO("\n".join(file_lines[annot_start:annot_end])), sep="\t")
+    if symbol_map:
+        df.index = df.index.map(lambda x: symbol_map.get(x, x))
+        df = df[~df.index.isna()]
+        df = df.loc[~df.index.duplicated(keep='first')]
 
-            if "ID" in annotation.columns and "Gene Symbol" in annotation.columns:
-                symbol_map = dict(zip(annotation["ID"], annotation["Gene Symbol"]))
-                df.index = df.index.map(lambda x: symbol_map.get(x, x))  # Replace probes with symbols
-        except Exception as e:
-            print(f"[Annotation Warning] {e}")
-
-    # Drop any null or duplicated index
-    df = df[~df.index.isna()]
-    df = df.loc[~df.index.duplicated(keep='first')]
-
-    return df.T  # Transpose to have samples as rows
+    return df.T
 
 def extract_labels_and_metadata(file_lines):
     meta_lines = [l for l in file_lines if "characteristics_ch1" in l.lower()]
@@ -45,7 +46,7 @@ def extract_labels_and_metadata(file_lines):
     metadata_df = pd.DataFrame(parsed)
     metadata_df.index.name = "Sample"
 
-    # Assign binary labels
+    # Assign binary/multi-class labels
     labels = []
     if "stress" in metadata_df.columns:
         for val in metadata_df["stress"].str.lower():
@@ -70,13 +71,21 @@ def extract_labels_and_metadata(file_lines):
 
     return labels, metadata_df
 
-def load_geo_series_matrix(file):
+def load_geo_series_matrix(file, annot_file=None):
     content = file.read()
     if isinstance(content, bytes):
         content = content.decode("utf-8")
     lines = content.splitlines()
 
-    expression_df = extract_expression_and_symbols(lines)
+    symbol_map = {}
+    if annot_file is not None:
+        symbol_map = parse_annotation_file(annot_file)
+        if not symbol_map:
+            print("⚠️ No gene symbol mapping found. Will keep probe IDs.")
+    else:
+        print("📎 No annotation file provided. Using raw probe IDs.")
+
+    expression_df = extract_expression_and_symbols(lines, symbol_map)
     labels, metadata = extract_labels_and_metadata(lines)
 
     return expression_df, labels, metadata
