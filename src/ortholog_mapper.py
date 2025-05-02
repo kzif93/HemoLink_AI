@@ -1,5 +1,3 @@
-# src/ortholog_mapper.py
-
 import pandas as pd
 
 def load_ortholog_map(csv_path="data/mouse_to_human_orthologs.csv"):
