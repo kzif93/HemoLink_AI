@@ -9,13 +9,13 @@ def parse_annotation_file(annot_file):
         df = pd.read_csv(StringIO("".join(lines)), sep="\t", low_memory=False)
 
         if "ID" in df.columns and "Gene Symbol" in df.columns:
-            df["ID"] = df["ID"].astype(str).str.strip()
-            df["Gene Symbol"] = df["Gene Symbol"].astype(str).str.strip()
+            df["ID"] = df["ID"].astype(str).str.strip().str.replace('"', '')
+            df["Gene Symbol"] = df["Gene Symbol"].astype(str).str.strip().str.replace('"', '')
             mapping = dict(zip(df["ID"], df["Gene Symbol"]))
-            print(f"[Annotation] ✅ Mapped {len(mapping)} probes to symbols")
+            print(f"[Annotation] ✅ Mapped {len(mapping)} probes to gene symbols.")
             return mapping
         else:
-            print("[Annotation] ❌ 'ID' or 'Gene Symbol' column not found.")
+            print("[Annotation] ❌ Missing 'ID' or 'Gene Symbol' column in annotation.")
     except Exception as e:
         print(f"[Annotation Error] {e}")
     return {}
@@ -27,20 +27,18 @@ def extract_expression_and_symbols(file_lines, symbol_map=None):
 
     df = pd.read_csv(StringIO("\n".join(matrix_lines)), sep="\t")
     df = df.set_index("ID_REF" if "ID_REF" in df.columns else df.columns[0])
-    df.index = df.index.astype(str).str.strip()  # Clean probe IDs
+    df.index = df.index.astype(str).str.strip().str.replace('"', '')
 
-    # Debug: show first few probe IDs
+    # Diagnostic
     print("[Matrix] Sample probe IDs:", list(df.index[:5]))
 
     if symbol_map:
-        test_map = list(symbol_map.items())[:5]
-        print("[Annotation] Sample probe mappings:", test_map)
-
-        df.index = df.index.map(lambda x: symbol_map.get(x.strip(), x.strip()))
+        print("[Annotation] Sample mappings:", list(symbol_map.items())[:5])
+        df.index = df.index.map(lambda x: symbol_map.get(x, x))
         df = df[~df.index.isna()]
         df = df.loc[~df.index.duplicated(keep='first')]
 
-    return df.T  # Samples = rows, genes = columns
+    return df.T  # Transpose so rows = samples
 
 def extract_labels_and_metadata(file_lines):
     meta_lines = [l for l in file_lines if "characteristics_ch1" in l.lower()]
@@ -59,7 +57,7 @@ def extract_labels_and_metadata(file_lines):
     metadata_df = pd.DataFrame(parsed)
     metadata_df.index.name = "Sample"
 
-    # Assign binary/multi-class labels
+    # Label extraction
     labels = []
     if "stress" in metadata_df.columns:
         for val in metadata_df["stress"].str.lower():
@@ -94,7 +92,7 @@ def load_geo_series_matrix(file, annot_file=None):
     if annot_file is not None:
         symbol_map = parse_annotation_file(annot_file)
         if not symbol_map:
-            print("⚠️ Annotation file loaded, but mapping failed.")
+            print("⚠️ Annotation loaded, but mapping returned 0 symbols.")
     else:
         print("📎 No annotation file provided. Using raw probe IDs.")
 
