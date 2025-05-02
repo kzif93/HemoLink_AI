@@ -9,13 +9,15 @@ def parse_annotation_file(annot_file):
         df = pd.read_csv(StringIO("".join(lines)), sep="\t", low_memory=False)
 
         if "ID" in df.columns and "Gene Symbol" in df.columns:
+            df["ID"] = df["ID"].astype(str).str.strip()
+            df["Gene Symbol"] = df["Gene Symbol"].astype(str).str.strip()
             mapping = dict(zip(df["ID"], df["Gene Symbol"]))
-            print(f"[Annotation] Mapped {len(mapping)} probe IDs to gene symbols.")
+            print(f"[Annotation] ✅ Mapped {len(mapping)} probes to symbols")
             return mapping
         else:
-            print("[Annotation] File found but 'ID' or 'Gene Symbol' column is missing.")
+            print("[Annotation] ❌ 'ID' or 'Gene Symbol' column not found.")
     except Exception as e:
-        print(f"[Annotation Error] Failed to parse .annot.gz: {e}")
+        print(f"[Annotation Error] {e}")
     return {}
 
 def extract_expression_and_symbols(file_lines, symbol_map=None):
@@ -25,13 +27,20 @@ def extract_expression_and_symbols(file_lines, symbol_map=None):
 
     df = pd.read_csv(StringIO("\n".join(matrix_lines)), sep="\t")
     df = df.set_index("ID_REF" if "ID_REF" in df.columns else df.columns[0])
+    df.index = df.index.astype(str).str.strip()  # Clean probe IDs
+
+    # Debug: show first few probe IDs
+    print("[Matrix] Sample probe IDs:", list(df.index[:5]))
 
     if symbol_map:
-        df.index = df.index.map(lambda x: symbol_map.get(x, x))
+        test_map = list(symbol_map.items())[:5]
+        print("[Annotation] Sample probe mappings:", test_map)
+
+        df.index = df.index.map(lambda x: symbol_map.get(x.strip(), x.strip()))
         df = df[~df.index.isna()]
         df = df.loc[~df.index.duplicated(keep='first')]
 
-    return df.T  # samples = rows, genes = columns
+    return df.T  # Samples = rows, genes = columns
 
 def extract_labels_and_metadata(file_lines):
     meta_lines = [l for l in file_lines if "characteristics_ch1" in l.lower()]
@@ -85,7 +94,7 @@ def load_geo_series_matrix(file, annot_file=None):
     if annot_file is not None:
         symbol_map = parse_annotation_file(annot_file)
         if not symbol_map:
-            print("⚠️ Annotation file loaded but mapping failed.")
+            print("⚠️ Annotation file loaded, but mapping failed.")
     else:
         print("📎 No annotation file provided. Using raw probe IDs.")
 
