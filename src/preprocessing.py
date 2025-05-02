@@ -1,7 +1,7 @@
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
-def clean_and_scale(X):
+def preprocess_features(X):
     X_clean = X.fillna(0)
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X_clean)
