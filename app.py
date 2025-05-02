@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 from src.data_loader import load_geo_series_matrix
@@ -13,21 +14,21 @@ st.set_page_config(page_title="HemoLink_AI", layout="wide")
 st.title("🧠 HemoLink_AI: Predict Preclinical to Clinical Translation")
 
 # ────────────────────────────────────────────────
-# Upload and train standard matrix
+# Section 1: Standard modeling
 # ────────────────────────────────────────────────
 st.markdown("### 📂 Upload GEO Series Matrix")
 
 uploaded_file = st.file_uploader("Upload GEO matrix (.txt or .csv)", type=["txt", "csv"])
-
 if uploaded_file:
     try:
         X, labels, metadata_df = load_geo_series_matrix(uploaded_file)
         st.success("✅ File loaded")
-        st.write(f"📊 Data shape: {X.shape}")
-        st.write(f"🔢 Labels: {len(labels)} | Classes: {set(labels)}")
+        st.write(f"📊 Data shape (rows = samples, cols = genes): {X.shape}")
+        st.write(f"🔢 Number of labels: {len(labels)}")
+        st.write(f"🧬 Unique label classes: {set(labels)}")
 
         if len(set(labels)) < 2:
-            st.warning("⚠️ Only one class detected. Model training may not work.")
+            st.warning("⚠️ Only one class detected. Classifier may fail.")
         else:
             X = preprocess_features(X)
             X = reduce_features(X)
@@ -44,7 +45,7 @@ if uploaded_file:
         st.error(f"❌ Error: {e}")
 
 # ────────────────────────────────────────────────
-# Annotate matrix using platform file
+# Section 2: Annotate expression matrix
 # ────────────────────────────────────────────────
 st.markdown("---")
 st.subheader("🧬 Annotate GEO Matrix with Gene Symbols")
@@ -54,7 +55,7 @@ annot_file = st.file_uploader("🧾 Upload platform annotation (.annot.gz or .tx
 
 if expr_file and annot_file:
     try:
-        expr_df, _ = load_geo_series_matrix(expr_file)
+        expr_df = load_geo_series_matrix(expr_file)[0]
         annot_map = load_annotation_file(annot_file)
         annotated = annotate_expression_matrix(expr_df, annot_map)
 
@@ -65,20 +66,28 @@ if expr_file and annot_file:
         st.error(f"❌ Annotation failed: {e}")
 
 # ────────────────────────────────────────────────
-# Cross-species modeling
+# Section 3: Cross-species modeling with annotation
 # ────────────────────────────────────────────────
 st.markdown("---")
-st.subheader("🧠 Train on Mouse ➜ Predict on Human")
+st.subheader("🧠 Cross-Species Modeling with Annotation")
 
-mouse_file = st.file_uploader("🐭 Upload mouse GEO matrix (.txt)", type=["txt"], key="mouse")
-human_file = st.file_uploader("👤 Upload human GEO matrix (.txt)", type=["txt"], key="human")
+mouse_expr_file = st.file_uploader("🐭 Upload mouse GEO matrix (.txt)", type=["txt"], key="mouse_expr")
+mouse_annot_file = st.file_uploader("🧬 Upload mouse annotation (.annot.gz)", type=["gz"], key="mouse_annot")
 
-if mouse_file and human_file:
+human_expr_file = st.file_uploader("👤 Upload human GEO matrix (.txt)", type=["txt"], key="human_expr")
+human_annot_file = st.file_uploader("🧬 Upload human annotation (.annot.gz)", type=["gz"], key="human_annot")
+
+if mouse_expr_file and mouse_annot_file and human_expr_file and human_annot_file:
     try:
-        mouse_data, _ = load_geo_series_matrix(mouse_file)
-        human_data, _ = load_geo_series_matrix(human_file)
+        mouse_raw = load_geo_series_matrix(mouse_expr_file)[0]
+        mouse_map = load_annotation_file(mouse_annot_file)
+        mouse_expr = annotate_expression_matrix(mouse_raw, mouse_map)
 
-        mouse_aligned, human_aligned, shared = align_cross_species_data(mouse_data, human_data)
+        human_raw = load_geo_series_matrix(human_expr_file)[0]
+        human_map = load_annotation_file(human_annot_file)
+        human_expr = annotate_expression_matrix(human_raw, human_map)
+
+        mouse_aligned, human_aligned, shared = align_cross_species_data(mouse_expr, human_expr)
 
         st.success(f"✅ Shared genes: {len(shared)}")
         st.write(f"🐭 Mouse shape: {mouse_aligned.shape}")
