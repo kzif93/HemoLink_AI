@@ -21,7 +21,8 @@ st.title("🧠 HemoLink_AI: Predict Clinical Translatability")
 # ============================
 st.markdown("### 📂 Upload Human GEO `.txt` or biomarker `.csv` file")
 
-uploaded_file = st.file_uploader("Upload your file:", type=["txt", "csv"], key="main")
+uploaded_file = st.file_uploader("Upload GEO expression matrix (.txt or .csv):", type=["txt", "csv"], key="main")
+annot_file = st.file_uploader("📎 Upload Platform Annotation File (.annot.gz, optional)", type=["gz"])
 
 if uploaded_file is not None:
     try:
@@ -32,7 +33,7 @@ if uploaded_file is not None:
         uploaded_file = BytesIO(file_content.encode())
 
         with st.spinner("Loading..."):
-            data, labels, metadata = load_geo_series_matrix(uploaded_file)
+            data, labels, metadata = load_geo_series_matrix(uploaded_file, annot_file)
             st.success("✅ File loaded")
 
         st.metric("Samples", data.shape[0])
@@ -115,15 +116,15 @@ st.markdown("## 🔁 Cross-Species Modeling (Mouse ➜ Human)")
 
 mouse_file = st.file_uploader("🐭 Upload Mouse GEO `.txt`", type=["txt"], key="mouse")
 human_file = st.file_uploader("👤 Upload Human GEO `.txt`", type=["txt"], key="human")
+human_annot = st.file_uploader("🧬 Upload Human .annot.gz", type=["gz"], key="human_annot")
 
 if mouse_file and human_file:
     try:
         st.markdown("### 🔍 Aligning genes...")
         mouse_data, mouse_labels, _ = load_geo_series_matrix(mouse_file)
-        human_data, human_labels, _ = load_geo_series_matrix(human_file)
+        human_data, human_labels, _ = load_geo_series_matrix(human_file, human_annot)
         mouse_data, human_data, shared_genes = align_cross_species_data(mouse_data, human_data)
 
-        # 🧪 Debug output
         st.write("✅ Shared genes:", len(shared_genes))
         st.write("🐭 Mouse shape:", mouse_data.shape)
         st.write("👤 Human shape:", human_data.shape)
