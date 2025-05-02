@@ -7,24 +7,27 @@ from src.model_training import train_model
 from src.prediction import predict
 from src.explainability import shap_summary_plot
 from src.gene_mapper import align_cross_species_data
+from src.annotator import load_annotation_file, annotate_expression_matrix
 
 st.set_page_config(page_title="HemoLink_AI", layout="wide")
 st.title("🧠 HemoLink_AI: Predict Preclinical to Clinical Translation")
 
-st.markdown("Upload a gene expression dataset to begin:")
+# ────────────────────────────────────────────────
+# Upload and train standard matrix
+# ────────────────────────────────────────────────
+st.markdown("### 📂 Upload GEO Series Matrix")
 
-uploaded_file = st.file_uploader("📂 Upload GEO Series Matrix (.txt) or CSV file", type=["txt", "csv"])
+uploaded_file = st.file_uploader("Upload GEO matrix (.txt or .csv)", type=["txt", "csv"])
 
 if uploaded_file:
     try:
         X, labels, metadata_df = load_geo_series_matrix(uploaded_file)
         st.success("✅ File loaded")
-        st.write(f"📊 Data shape (rows = samples, cols = genes): {X.shape}")
-        st.write(f"🔢 Number of labels: {len(labels)}")
-        st.write(f"🧬 Unique label classes: {set(labels)}")
+        st.write(f"📊 Data shape: {X.shape}")
+        st.write(f"🔢 Labels: {len(labels)} | Classes: {set(labels)}")
 
         if len(set(labels)) < 2:
-            st.warning("⚠️ Only one class detected in labels. Classifier may fail.")
+            st.warning("⚠️ Only one class detected. Model training may not work.")
         else:
             X = preprocess_features(X)
             X = reduce_features(X)
@@ -40,7 +43,30 @@ if uploaded_file:
     except Exception as e:
         st.error(f"❌ Error: {e}")
 
-# 🧠 Cross-species modeling
+# ────────────────────────────────────────────────
+# Annotate matrix using platform file
+# ────────────────────────────────────────────────
+st.markdown("---")
+st.subheader("🧬 Annotate GEO Matrix with Gene Symbols")
+
+expr_file = st.file_uploader("📂 Upload GEO matrix (.txt)", type=["txt"], key="expr")
+annot_file = st.file_uploader("🧾 Upload platform annotation (.annot.gz or .txt)", type=["gz", "txt"], key="annot")
+
+if expr_file and annot_file:
+    try:
+        expr_df, _ = load_geo_series_matrix(expr_file)
+        annot_map = load_annotation_file(annot_file)
+        annotated = annotate_expression_matrix(expr_df, annot_map)
+
+        st.success(f"✅ Annotation complete. Matrix shape: {annotated.shape}")
+        st.dataframe(annotated.iloc[:, :10])
+
+    except Exception as e:
+        st.error(f"❌ Annotation failed: {e}")
+
+# ────────────────────────────────────────────────
+# Cross-species modeling
+# ────────────────────────────────────────────────
 st.markdown("---")
 st.subheader("🧠 Train on Mouse ➜ Predict on Human")
 
