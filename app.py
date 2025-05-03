@@ -19,24 +19,24 @@ from explainability import generate_shap_plots
 st.set_page_config(page_title="HemoLink_AI", layout="wide")
 st.title("🧠 HemoLink_AI: Cross-Species Thrombosis Predictor")
 
-# 1. Upload CSVs
+# 1. Upload CSV or TXT files
 st.header("📂 Upload Data")
-mouse_file = st.file_uploader("Upload preprocessed **mouse** expression matrix (.csv)", type="csv")
-human_file = st.file_uploader("Upload preprocessed **human** expression matrix (.csv)", type="csv")
-ortholog_file = st.file_uploader("Upload mouse-to-human ortholog mapping (.csv)", type="csv")
+mouse_file = st.file_uploader("Upload preprocessed **mouse** expression matrix (.csv or .txt)", type=["csv", "txt"])
+human_file = st.file_uploader("Upload preprocessed **human** expression matrix (.csv or .txt)", type=["csv", "txt"])
+ortholog_file = st.file_uploader("Upload mouse-to-human ortholog mapping (.csv or .txt)", type=["csv", "txt"])
 
 if mouse_file and human_file and ortholog_file:
-    # 2. Load CSVs
-    mouse_df = pd.read_csv(mouse_file, index_col=0)
-    human_df = pd.read_csv(human_file, index_col=0)
-    ortholog_df = pd.read_csv(ortholog_file)
+    # 2. Load files with auto delimiter detection
+    mouse_df = pd.read_csv(mouse_file, sep=None, engine="python", index_col=0)
+    human_df = pd.read_csv(human_file, sep=None, engine="python", index_col=0)
+    ortholog_df = pd.read_csv(ortholog_file, sep=None, engine="python")
 
     st.success("✅ All files loaded successfully.")
 
     # 3. Map orthologs
     mouse_aligned, human_aligned = map_orthologs(mouse_df, human_df, ortholog_df)
 
-    # 4. Preprocess (clean + scale)
+    # 4. Preprocess
     mouse_scaled = clean_and_scale(mouse_aligned)
     human_scaled = clean_and_scale(human_aligned)
 
@@ -57,4 +57,4 @@ if mouse_file and human_file and ortholog_file:
         st.pyplot(shap_fig)
 
 else:
-    st.info("Please upload all three CSV files to begin: mouse, human, and ortholog mapping.")
+    st.info("Please upload all three files (.csv or .txt) to begin.")
