@@ -1,16 +1,23 @@
+# src/prediction.py
+
 import pandas as pd
 
-def predict(model, X):
+def predict_on_human(model, X_human):
     """
-    Returns a DataFrame with prediction probabilities and predicted classes.
+    Predict outcomes on human expression data using a trained model.
+
+    Parameters:
+        model: Trained sklearn classifier
+        X_human (pd.DataFrame): Preprocessed and aligned human expression data
+
+    Returns:
+        pd.DataFrame: Predictions as a DataFrame with binary output and probabilities
     """
-    proba = model.predict_proba(X)
-    preds = model.predict(X)
+    # Predict class labels and probabilities
+    predicted_labels = model.predict(X_human)
+    predicted_probs = model.predict_proba(X_human)[:, 1]
 
-    df = pd.DataFrame({
-        "Prediction": preds,
-        "Probability_0": proba[:, 0],
-        "Probability_1": proba[:, 1]
-    }, index=X.index)
-
-    return df
+    return pd.DataFrame({
+        "Prediction": predicted_labels,
+        "Probability": predicted_probs
+    }, index=X_human.index)
