@@ -1,19 +1,34 @@
+# src/ortholog_mapper.py
+
 import pandas as pd
 
-def load_ortholog_map(csv_path="data/mouse_to_human_orthologs.csv"):
-    try:
-        df = pd.read_csv(csv_path)
-        df = df.dropna(subset=["mouse_symbol", "human_symbol"])
-        df["mouse_symbol"] = df["mouse_symbol"].astype(str).str.upper()
-        df["human_symbol"] = df["human_symbol"].astype(str).str.upper()
-        return dict(zip(df["mouse_symbol"], df["human_symbol"]))
-    except Exception as e:
-        print(f"[Ortholog Error] Failed to load ortholog map: {e}")
-        return {}
+def map_orthologs(mouse_df, human_df, ortholog_df):
+    """
+    Aligns mouse and human expression data using an ortholog mapping.
 
-def convert_mouse_genes_to_human(df, ortholog_map):
-    df.columns = df.columns.astype(str).str.upper()
-    df.columns = df.columns.map(lambda g: ortholog_map.get(g, None))
-    df = df.loc[:, df.columns.notna()]
-    df = df.loc[:, ~df.columns.duplicated()]
-    return df
+    Parameters:
+        mouse_df (pd.DataFrame): Mouse expression matrix with gene symbols as columns
+        human_df (pd.DataFrame): Human expression matrix with gene symbols as columns
+        ortholog_df (pd.DataFrame): DataFrame with columns ['mouse_symbol', 'human_symbol']
+
+    Returns:
+        (pd.DataFrame, pd.DataFrame): Aligned mouse and human DataFrames
+    """
+    # Keep only orthologs present in both datasets
+    valid_orthologs = ortholog_df[
+        (ortholog_df["mouse_symbol"].isin(mouse_df.columns)) &
+        (ortholog_df["human_symbol"].isin(human_df.columns))
+    ]
+
+    # Subset and reorder both datasets
+    mouse_genes = valid_orthologs["mouse_symbol"].values
+    human_genes = valid_orthologs["human_symbol"].values
+
+    mouse_aligned = mouse_df[mouse_genes]
+    human_aligned = human_df[human_genes]
+
+    # Rename to shared names for downstream model compatibility
+    mouse_aligned.columns = valid_orthologs["human_symbol"].values
+    human_aligned.columns = valid_orthologs["human_symbol"].values
+
+    return mouse_aligned, human_aligned
