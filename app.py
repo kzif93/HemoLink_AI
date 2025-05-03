@@ -1,108 +1,83 @@
 import streamlit as st
 import pandas as pd
-from src.data_loader import load_geo_series_matrix
-from src.preprocessing import preprocess_features
+import os
+
+from src.annotator import annotate_expression_matrix, load_annotation_file
+from src.preprocessing import clean_and_scale
 from src.feature_engineering import reduce_features
 from src.model_training import train_model
 from src.prediction import predict
 from src.explainability import shap_summary_plot
-from src.gene_mapper import align_cross_species_data
-from src.annotator import load_annotation_file, annotate_expression_matrix
+from src.ortholog_mapper import map_orthologs_cross_species
 
-st.set_page_config(page_title="HemoLink_AI", layout="wide")
-st.title("🧠 HemoLink_AI: Predict Preclinical to Clinical Translation")
+st.set_page_config(layout="wide")
+st.title("🧬 HemoLink AI – Cross-Species Gene Expression Analyzer")
 
-# ────────────────────────────────────────────────
-# Section 1: Standard modeling
-# ────────────────────────────────────────────────
-st.markdown("### 📂 Upload GEO Series Matrix")
+# Load matrix
+st.sidebar.header("📁 Upload Expression Matrix")
+expr_file = st.sidebar.file_uploader("Upload .csv or .txt matrix", type=["csv", "txt"])
+matrix_df = None
 
-uploaded_file = st.file_uploader("Upload GEO matrix (.txt or .csv)", type=["txt", "csv"])
-if uploaded_file:
+if expr_file is not None:
     try:
-        X, labels, metadata_df = load_geo_series_matrix(uploaded_file)
-        st.success("✅ File loaded")
-        st.write(f"📊 Data shape (rows = samples, cols = genes): {X.shape}")
-        st.write(f"🔢 Number of labels: {len(labels)}")
-        st.write(f"🧬 Unique label classes: {set(labels)}")
-
-        if len(set(labels)) < 2:
-            st.warning("⚠️ Only one class detected. Classifier may fail.")
-        else:
-            X = preprocess_features(X)
-            X = reduce_features(X)
-
-            model, acc = train_model(X, labels)
-            st.success(f"✅ Model trained (accuracy: {acc:.2f})")
-
-            preds = predict(model, X)
-            st.dataframe(preds.head())
-
-            shap_summary_plot(model, X)
-
+        st.sidebar.success("✅ Matrix uploaded")
+        if expr_file.name.endswith(".csv"):
+            matrix_df = pd.read_csv(expr_file, index_col=0)
+        elif expr_file.name.endswith(".txt"):
+            lines = expr_file.read().decode("utf-8").splitlines()
+            data_lines = [line for line in lines if not line.startswith("!") and not line.startswith("#")]
+            from io import StringIO
+            matrix_df = pd.read_csv(StringIO("\n".join(data_lines)), sep="\t", index_col=0)
+        st.write("📊 Matrix preview:", matrix_df.iloc[:5, :5])
     except Exception as e:
-        st.error(f"❌ Error: {e}")
+        st.sidebar.error(f"❌ Failed to load matrix: {e}")
 
-# ────────────────────────────────────────────────
-# Section 2: Annotate expression matrix
-# ────────────────────────────────────────────────
-st.markdown("---")
-st.subheader("🧬 Annotate GEO Matrix with Gene Symbols")
+# Annotation step
+st.sidebar.header("🧾 Upload Annotation File")
+annot_file = st.sidebar.file_uploader("Upload .txt or .gz annotation", type=["txt", "gz"])
+annotated_df = None
 
-expr_file = st.file_uploader("📂 Upload GEO matrix (.txt)", type=["txt"], key="expr")
-annot_file = st.file_uploader("🧾 Upload platform annotation (.annot.gz or .txt)", type=["gz", "txt"], key="annot")
-
-if expr_file and annot_file:
+if st.sidebar.button("🔄 Annotate") and matrix_df is not None and annot_file is not None:
     try:
-        expr_df = load_geo_series_matrix(expr_file)[0]
-        annot_map = load_annotation_file(annot_file)
-        annotated = annotate_expression_matrix(expr_df, annot_map)
-
-        st.success(f"✅ Annotation complete. Matrix shape: {annotated.shape}")
-        st.dataframe(annotated.iloc[:, :10])
-
+        st.info("🔄 Annotating...")
+        annotation_map = load_annotation_file(annot_file)
+        annotated_df = annotate_expression_matrix(matrix_df, annotation_map)
+        st.success(f"✅ Annotation complete. Genes: {annotated_df.shape[1]}")
+        st.write("🧬 Annotated preview:", annotated_df.iloc[:5, :5])
     except Exception as e:
         st.error(f"❌ Annotation failed: {e}")
 
-# ────────────────────────────────────────────────
-# Section 3: Cross-species modeling with annotation
-# ────────────────────────────────────────────────
-st.markdown("---")
-st.subheader("🧠 Cross-Species Modeling with Annotation")
-
-mouse_expr_file = st.file_uploader("🐭 Upload mouse GEO matrix (.txt)", type=["txt"], key="mouse_expr")
-mouse_annot_file = st.file_uploader("🧬 Upload mouse annotation (.annot.txt or .annot.gz)", type=["txt", "gz"], key="mouse_annot")
-
-human_expr_file = st.file_uploader("👤 Upload human GEO matrix (.txt)", type=["txt"], key="human_expr")
-human_annot_file = st.file_uploader("🧬 Upload human annotation (.annot.txt or .annot.gz)", type=["txt", "gz"], key="human_annot")
-
-if mouse_expr_file and mouse_annot_file and human_expr_file and human_annot_file:
+# Model training + SHAP if annotation worked
+if annotated_df is not None:
     try:
-        mouse_raw = load_geo_series_matrix(mouse_expr_file)[0]
-        mouse_map = load_annotation_file(mouse_annot_file)
-        mouse_expr = annotate_expression_matrix(mouse_raw, mouse_map)
+        st.header("🧪 Model Training")
+        X = clean_and_scale(annotated_df)
+        y = [1 if "dvt" in idx.lower() else 0 for idx in X.index]  # simple binary label inference
+        X_reduced = reduce_features(X)
+        model = train_model(X_reduced, y)
+        preds = predict(model, X_reduced)
+        st.success("✅ Model trained")
+        st.write("📈 Predictions:", preds)
+        st.header("📉 Feature Importance (SHAP)")
+        shap_summary_plot(model, X_reduced)
+    except Exception as e:
+        st.error(f"❌ Model training or SHAP failed: {e}")
 
-        human_raw = load_geo_series_matrix(human_expr_file)[0]
-        human_map = load_annotation_file(human_annot_file)
-        human_expr = annotate_expression_matrix(human_raw, human_map)
+# Cross-species analysis
+st.sidebar.header("🧬 Cross-Species Evaluation")
+human_file = st.sidebar.file_uploader("Upload annotated human .csv", type=["csv"], key="human")
+mouse_file = st.sidebar.file_uploader("Upload annotated mouse .csv", type=["csv"], key="mouse")
+ortholog_file = st.sidebar.file_uploader("Upload ortholog CSV", type=["csv"], key="ortholog")
 
-        mouse_aligned, human_aligned, shared = align_cross_species_data(mouse_expr, human_expr)
+if st.sidebar.button("🚀 Run Cross-Species") and human_file and mouse_file and ortholog_file:
+    try:
+        st.header("🔁 Cross-Species Analysis")
+        human_df = pd.read_csv(human_file, index_col=0)
+        mouse_df = pd.read_csv(mouse_file, index_col=0)
+        ortholog_df = pd.read_csv(ortholog_file)
 
-        st.success(f"✅ Shared genes: {len(shared)}")
-        st.write(f"🐭 Mouse shape: {mouse_aligned.shape}")
-        st.write(f"👤 Human shape: {human_aligned.shape}")
-        st.write("🧬 Sample shared genes:")
-        st.code(shared[:10])
-
-        if len(shared) == 0:
-            st.error("❌ No shared genes found. Likely due to unmapped probe IDs.")
-        else:
-            dummy_labels = [0, 1] * (len(mouse_aligned) // 2) + [0] * (len(mouse_aligned) % 2)
-            model, acc = train_model(mouse_aligned, dummy_labels)
-
-            human_preds = predict(model, human_aligned)
-            st.success("✅ Cross-species prediction completed.")
-            st.dataframe(human_preds.head())
-
+        results = map_orthologs_cross_species(mouse_df, human_df, ortholog_df)
+        st.success("✅ Cross-species mapping complete")
+        st.write("🔬 Prediction preview:", results.head())
     except Exception as e:
         st.error(f"❌ Cross-species error: {e}")
