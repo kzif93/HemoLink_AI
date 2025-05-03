@@ -5,29 +5,38 @@ import sys
 import streamlit as st
 import pandas as pd
 
-# 🔧 Ensure src/ folder is in Python path
+# Extend sys path to access src/
 sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
 
-# ✅ Import modules from src/
 from preprocessing import clean_and_scale
 from ortholog_mapper import map_orthologs
 from model_training import train_model
 from prediction import predict_on_human
 from explainability import generate_shap_plots
 
-# Streamlit App Config
 st.set_page_config(page_title="HemoLink_AI", layout="wide")
 st.title("🧠 HemoLink_AI: Cross-Species Thrombosis Predictor")
 
-# 🗂 Load all files directly from local repo
 try:
     st.info("📂 Loading datasets from local repository...")
 
+    # Load raw files
     mouse_df = pd.read_csv("GSE125965_annotated_cleaned.csv", index_col=0)
     human_df = pd.read_csv("data/compressed_data.csv.gz", compression="gzip", index_col=0)
     ortholog_df = pd.read_csv("data/mouse_to_human_orthologs.csv")
 
-    st.success("✅ Files loaded successfully!")
+    # 🔄 Normalize column names (uppercase for alignment)
+    mouse_df.columns = mouse_df.columns.str.upper()
+    human_df.columns = human_df.columns.str.upper()
+    ortholog_df["mouse_symbol"] = ortholog_df["mouse_symbol"].str.upper()
+    ortholog_df["human_symbol"] = ortholog_df["human_symbol"].str.upper()
+
+    # 🧪 Debug preview
+    st.write("🧬 Sample mouse genes:", list(mouse_df.columns[:10]))
+    st.write("🧬 Sample human genes:", list(human_df.columns[:10]))
+    st.write("🧬 Sample ortholog map:", ortholog_df.head())
+
+    st.success("✅ Files loaded and normalized.")
 
     # 1. Map orthologs
     mouse_aligned, human_aligned = map_orthologs(mouse_df, human_df, ortholog_df)
@@ -36,7 +45,7 @@ try:
     mouse_scaled = clean_and_scale(mouse_aligned)
     human_scaled = clean_and_scale(human_aligned)
 
-    # 3. Train model on mouse
+    # 3. Train model
     st.header("🧪 Training on Mouse Data")
     model, metrics = train_model(mouse_scaled)
     st.write("📊 Training Metrics:", metrics)
@@ -46,7 +55,7 @@ try:
     predictions = predict_on_human(model, human_scaled)
     st.dataframe(predictions)
 
-    # 5. SHAP Explainability
+    # 5. SHAP
     st.header("🧬 SHAP Explainability")
     if st.checkbox("Show SHAP explanations"):
         shap_fig = generate_shap_plots(model, human_scaled)
