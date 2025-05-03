@@ -8,14 +8,11 @@ import numpy as np
 def generate_shap_plots(model, X):
     # Create SHAP explainer
     explainer = shap.Explainer(model, X)
-    shap_values = explainer(X)
+    shap_values = explainer(X)  # shape: (samples, features, classes)
 
-    # Determine SHAP value format
-    if isinstance(shap_values, list):
-        if len(shap_values) > 1:
-            shap_matrix = shap_values[1].values
-        else:
-            shap_matrix = shap_values[0].values
+    # Multiclass shape (samples, features, classes)
+    if len(shap_values.shape) == 3:
+        shap_matrix = shap_values[..., 1]  # Class 1 (DVT)
     else:
         shap_matrix = shap_values.values
 
