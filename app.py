@@ -23,16 +23,13 @@ try:
     # ✅ Load and transpose mouse data
     mouse_df = pd.read_csv("GSE125965_annotated_cleaned.csv", index_col=0).T
 
-    # ✅ Automatically extract DVT labels from sample names
-    y_mouse = mouse_df.index.to_series().apply(
-        lambda x: 1 if "DVT" in x.upper() and "SHAM" not in x.upper() else 0
-    )
-    st.write("📊 DVT label counts:", y_mouse.value_counts())
-
-    # Check for valid binary classification
-    if y_mouse.nunique() < 2:
-        st.error("❌ Only one class found in y_mouse. You need at least one sample for each class.")
-        st.stop()
+    # ✅ Manually assign labels from known metadata
+    y_mouse = pd.Series({
+        "GSM3586432": 0,  # Sham
+        "GSM3586433": 1,  # DVT
+        "GSM3586434": 0,  # Sham
+        "GSM3586435": 1   # DVT
+    })
 
     # ✅ Load human and ortholog files
     human_df = pd.read_csv("data/compressed_data.csv.gz", compression="gzip", index_col=0)
@@ -44,10 +41,6 @@ try:
     ortholog_df["mouse_symbol"] = ortholog_df["mouse_symbol"].str.upper()
     ortholog_df["human_symbol"] = ortholog_df["human_symbol"].str.upper()
 
-    # Debug display
-    st.write("🧬 Sample mouse genes:", list(mouse_df.columns[:10]))
-    st.write("🧬 Sample human genes:", list(human_df.columns[:10]))
-    st.write("🧬 Sample orthologs:", ortholog_df.head())
     st.success("✅ Files loaded and normalized.")
 
     # 1. Align by shared orthologs
