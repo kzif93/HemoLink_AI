@@ -19,13 +19,13 @@ from explainability import generate_shap_plots
 st.set_page_config(page_title="HemoLink_AI", layout="wide")
 st.title("🧠 HemoLink_AI: Cross-Species Thrombosis Predictor")
 
-# 1. Upload CSV or TXT files
+# 1. Upload CSV, TXT, or GZ files
 st.header("📂 Upload Data")
-mouse_file = st.file_uploader("Upload preprocessed **mouse** expression matrix (.csv or .txt)", type=["csv", "txt"])
-human_file = st.file_uploader("Upload preprocessed **human** expression matrix (.csv or .txt)", type=["csv", "txt"])
-ortholog_file = st.file_uploader("Upload mouse-to-human ortholog mapping (.csv or .txt)", type=["csv", "txt"])
+mouse_file = st.file_uploader("Upload preprocessed **mouse** expression matrix (.csv, .txt, or .gz)", type=["csv", "txt", "gz"])
+human_file = st.file_uploader("Upload preprocessed **human** expression matrix (.csv, .txt, or .gz)", type=["csv", "txt", "gz"])
+ortholog_file = st.file_uploader("Upload mouse-to-human ortholog mapping (.csv, .txt, or .gz)", type=["csv", "txt", "gz"])
 
-# 2. Load ortholog mapping
+# 2. Load ortholog mapping (use default if none uploaded)
 if ortholog_file is None:
     default_path = os.path.join("data", "mouse_to_human_orthologs.csv")
     if os.path.exists(default_path):
@@ -35,13 +35,12 @@ if ortholog_file is None:
         st.error("❌ No ortholog file uploaded and default file not found.")
         st.stop()
 else:
-    ortholog_df = pd.read_csv(ortholog_file, sep=None, engine="python")
+    ortholog_df = pd.read_csv(ortholog_file, sep=None, engine="python", compression="infer")
 
-# 3. Proceed if mouse and human files are uploaded
+# 3. Load mouse and human files if both are uploaded
 if mouse_file and human_file:
-    # Load expression data with auto delimiter detection
-    mouse_df = pd.read_csv(mouse_file, sep=None, engine="python", index_col=0)
-    human_df = pd.read_csv(human_file, sep=None, engine="python", index_col=0)
+    mouse_df = pd.read_csv(mouse_file, sep=None, engine="python", index_col=0, compression="infer")
+    human_df = pd.read_csv(human_file, sep=None, engine="python", index_col=0, compression="infer")
 
     st.success("✅ All files loaded successfully.")
 
@@ -69,4 +68,4 @@ if mouse_file and human_file:
         st.pyplot(shap_fig)
 
 else:
-    st.info("Please upload the **mouse** and **human** expression files (.csv or .txt) to begin.")
+    st.info("Please upload the **mouse** and **human** expression files (.csv, .txt, or .gz) to begin.")
