@@ -25,36 +25,48 @@ mouse_file = st.file_uploader("Upload preprocessed **mouse** expression matrix (
 human_file = st.file_uploader("Upload preprocessed **human** expression matrix (.csv or .txt)", type=["csv", "txt"])
 ortholog_file = st.file_uploader("Upload mouse-to-human ortholog mapping (.csv or .txt)", type=["csv", "txt"])
 
-if mouse_file and human_file and ortholog_file:
-    # 2. Load files with auto delimiter detection
+# 2. Load ortholog mapping
+if ortholog_file is None:
+    default_path = os.path.join("data", "mouse_to_human_orthologs.csv")
+    if os.path.exists(default_path):
+        st.info("ℹ️ No ortholog file uploaded — using default from /data folder.")
+        ortholog_df = pd.read_csv(default_path)
+    else:
+        st.error("❌ No ortholog file uploaded and default file not found.")
+        st.stop()
+else:
+    ortholog_df = pd.read_csv(ortholog_file, sep=None, engine="python")
+
+# 3. Proceed if mouse and human files are uploaded
+if mouse_file and human_file:
+    # Load expression data with auto delimiter detection
     mouse_df = pd.read_csv(mouse_file, sep=None, engine="python", index_col=0)
     human_df = pd.read_csv(human_file, sep=None, engine="python", index_col=0)
-    ortholog_df = pd.read_csv(ortholog_file, sep=None, engine="python")
 
     st.success("✅ All files loaded successfully.")
 
-    # 3. Map orthologs
+    # 4. Map orthologs
     mouse_aligned, human_aligned = map_orthologs(mouse_df, human_df, ortholog_df)
 
-    # 4. Preprocess
+    # 5. Preprocess
     mouse_scaled = clean_and_scale(mouse_aligned)
     human_scaled = clean_and_scale(human_aligned)
 
-    # 5. Train model on mouse
+    # 6. Train model on mouse
     st.header("🧪 Training on Mouse Data")
     model, metrics = train_model(mouse_scaled)
     st.write("📊 Training Metrics:", metrics)
 
-    # 6. Predict on human
+    # 7. Predict on human
     st.header("🔍 Predicting on Human Data")
     predictions = predict_on_human(model, human_scaled)
     st.dataframe(predictions)
 
-    # 7. SHAP Explainability
+    # 8. SHAP Explainability
     st.header("🧬 SHAP Explainability")
     if st.checkbox("Show SHAP explanations"):
         shap_fig = generate_shap_plots(model, human_scaled)
         st.pyplot(shap_fig)
 
 else:
-    st.info("Please upload all three files (.csv or .txt) to begin.")
+    st.info("Please upload the **mouse** and **human** expression files (.csv or .txt) to begin.")
