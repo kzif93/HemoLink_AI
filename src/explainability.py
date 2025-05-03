@@ -2,6 +2,8 @@
 
 import shap
 import matplotlib.pyplot as plt
+import streamlit as st
+import numpy as np
 
 def generate_shap_plots(model, X):
     # Create SHAP explainer
@@ -10,24 +12,22 @@ def generate_shap_plots(model, X):
 
     # Determine SHAP value format
     if isinstance(shap_values, list):
-        # Multi-class or binary
         if len(shap_values) > 1:
             shap_matrix = shap_values[1].values
         else:
             shap_matrix = shap_values[0].values
     else:
-        # Regression or single-output
         shap_matrix = shap_values.values
 
-    # Debug logs
-    print("SHAP matrix shape:", shap_matrix.shape)
-    print("SHAP mean abs:", abs(shap_matrix).mean())
+    # Streamlit debug output
+    st.write("🧬 SHAP matrix shape:", shap_matrix.shape)
+    st.write("📊 SHAP mean(abs):", np.abs(shap_matrix).mean())
+    st.write("🧬 Feature matrix shape:", X.shape)
 
-    # Optional warning if all SHAP values are 0
-    if abs(shap_matrix).mean() < 1e-5:
-        print("⚠️ SHAP values are near zero. Plot may appear empty.")
+    if np.abs(shap_matrix).mean() < 1e-5:
+        st.warning("⚠️ SHAP values are nearly zero. The plot may appear empty due to low signal.")
 
-    # Create plot
+    # Plot summary
     fig = plt.figure(figsize=(10, 6))
     shap.summary_plot(shap_matrix, X, plot_type="dot", show=False, max_display=10)
     return fig
