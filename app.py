@@ -23,10 +23,16 @@ try:
     # ✅ Load and transpose mouse data
     mouse_df = pd.read_csv("GSE125965_annotated_cleaned.csv", index_col=0).T
 
-    # ✅ Automatically extract DVT labels from sample names
+    # ✅ Automatically extract labels from sample names
     y_mouse = mouse_df.index.to_series().apply(
-        lambda x: 1 if "DVT" in x.upper() else 0
+        lambda x: 1 if "DVT" in x.upper() and "SHAM" not in x.upper() else 0
     )
+    st.write("📊 DVT label counts:", y_mouse.value_counts())
+
+    # Check for valid binary classification
+    if y_mouse.nunique() < 2:
+        st.error("❌ Only one class found in y_mouse. You need at least one sample for each class.")
+        st.stop()
 
     # ✅ Load human and ortholog files
     human_df = pd.read_csv("data/compressed_data.csv.gz", compression="gzip", index_col=0)
@@ -41,32 +47,4 @@ try:
     # Debug display
     st.write("🧬 Sample mouse genes:", list(mouse_df.columns[:10]))
     st.write("🧬 Sample human genes:", list(human_df.columns[:10]))
-    st.write("🧬 Sample orthologs:", ortholog_df.head())
-    st.success("✅ Files loaded and normalized.")
-
-    # 1. Align by shared orthologs
-    mouse_aligned, human_aligned = map_orthologs(mouse_df, human_df, ortholog_df)
-
-    # 2. Preprocess features
-    mouse_scaled = clean_and_scale(mouse_aligned)
-    human_scaled = clean_and_scale(human_aligned)
-
-    # 3. Train model on mouse data
-    st.header("🧪 Training on Mouse Data")
-    model, metrics = train_model(mouse_scaled, y_mouse)
-    st.write("📊 Training Metrics:", metrics)
-
-    # 4. Predict on human data
-    st.header("🔍 Predicting on Human Data")
-    predictions = predict_on_human(model, human_scaled)
-    st.dataframe(predictions)
-
-    # 5. SHAP explanations
-    st.header("🧬 SHAP Explainability")
-    if st.checkbox("Show SHAP explanations"):
-        shap_fig = generate_shap_plots(model, human_scaled)
-        st.pyplot(shap_fig)
-
-except Exception as e:
-    st.error("❌ Failed to load or process data.")
-    st.exception(e)
+    st.write("🧬 Sample
