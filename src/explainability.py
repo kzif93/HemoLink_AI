@@ -4,21 +4,22 @@ import shap
 import matplotlib.pyplot as plt
 
 def generate_shap_plots(model, X):
-    """
-    Generate a SHAP summary (beeswarm) plot to explain model predictions.
+    # Create SHAP explainer
+    explainer = shap.Explainer(model, X)
+    shap_values = explainer(X)
 
-    Parameters:
-        model: Trained tree-based model (e.g., RandomForestClassifier)
-        X (pd.DataFrame): Input data used for prediction
+    # Determine SHAP value format (multiclass vs single-output)
+    if isinstance(shap_values, list):
+        # Binary/multiclass classifier: use class 1 if available
+        if len(shap_values) > 1:
+            shap_matrix = shap_values[1].values
+        else:
+            shap_matrix = shap_values[0].values
+    else:
+        # Regression or single-output model
+        shap_matrix = shap_values.values
 
-    Returns:
-        matplotlib.figure.Figure: SHAP beeswarm plot figure
-    """
-    # Use TreeExplainer for RandomForest or similar models
-    explainer = shap.TreeExplainer(model)
-    shap_values = explainer.shap_values(X)
-
-    # Generate beeswarm plot for class 1 (if binary classification)
-    fig, ax = plt.subplots()
-    shap.summary_plot(shap_values[1], X, plot_type="dot", show=False)
+    # Plot summary
+    fig = plt.figure(figsize=(10, 6))
+    shap.summary_plot(shap_matrix, X, plot_type="dot", show=False)
     return fig
