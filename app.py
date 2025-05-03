@@ -1,83 +1,61 @@
 import streamlit as st
 import pandas as pd
-import os
-
-from src.annotator import annotate_expression_matrix, load_annotation_file
+import numpy as np
 from src.preprocessing import clean_and_scale
 from src.feature_engineering import reduce_features
 from src.model_training import train_model
 from src.prediction import predict
 from src.explainability import shap_summary_plot
-from src.ortholog_mapper import map_orthologs_cross_species
+from src.ortholog_mapper import load_ortholog_map, align_gene_symbols
 
-st.set_page_config(layout="wide")
-st.title("🧬 HemoLink AI – Cross-Species Gene Expression Analyzer")
+st.set_page_config(page_title="HemoLink AI – Cross-Species", layout="wide")
 
-# Load matrix
-st.sidebar.header("📁 Upload Expression Matrix")
-expr_file = st.sidebar.file_uploader("Upload .csv or .txt matrix", type=["csv", "txt"])
-matrix_df = None
+st.title("🧬 HemoLink AI – Cross-Species Analysis (Mouse ➜ Human)")
 
-if expr_file is not None:
+# Upload pre-cleaned, annotated CSVs
+st.header("📂 Upload Preprocessed CSVs")
+mouse_file = st.file_uploader("🐭 Upload Mouse CSV", type=["csv"])
+human_file = st.file_uploader("👤 Upload Human CSV", type=["csv"])
+
+if mouse_file and human_file:
     try:
-        st.sidebar.success("✅ Matrix uploaded")
-        if expr_file.name.endswith(".csv"):
-            matrix_df = pd.read_csv(expr_file, index_col=0)
-        elif expr_file.name.endswith(".txt"):
-            lines = expr_file.read().decode("utf-8").splitlines()
-            data_lines = [line for line in lines if not line.startswith("!") and not line.startswith("#")]
-            from io import StringIO
-            matrix_df = pd.read_csv(StringIO("\n".join(data_lines)), sep="\t", index_col=0)
-        st.write("📊 Matrix preview:", matrix_df.iloc[:5, :5])
-    except Exception as e:
-        st.sidebar.error(f"❌ Failed to load matrix: {e}")
-
-# Annotation step
-st.sidebar.header("🧾 Upload Annotation File")
-annot_file = st.sidebar.file_uploader("Upload .txt or .gz annotation", type=["txt", "gz"])
-annotated_df = None
-
-if st.sidebar.button("🔄 Annotate") and matrix_df is not None and annot_file is not None:
-    try:
-        st.info("🔄 Annotating...")
-        annotation_map = load_annotation_file(annot_file)
-        annotated_df = annotate_expression_matrix(matrix_df, annotation_map)
-        st.success(f"✅ Annotation complete. Genes: {annotated_df.shape[1]}")
-        st.write("🧬 Annotated preview:", annotated_df.iloc[:5, :5])
-    except Exception as e:
-        st.error(f"❌ Annotation failed: {e}")
-
-# Model training + SHAP if annotation worked
-if annotated_df is not None:
-    try:
-        st.header("🧪 Model Training")
-        X = clean_and_scale(annotated_df)
-        y = [1 if "dvt" in idx.lower() else 0 for idx in X.index]  # simple binary label inference
-        X_reduced = reduce_features(X)
-        model = train_model(X_reduced, y)
-        preds = predict(model, X_reduced)
-        st.success("✅ Model trained")
-        st.write("📈 Predictions:", preds)
-        st.header("📉 Feature Importance (SHAP)")
-        shap_summary_plot(model, X_reduced)
-    except Exception as e:
-        st.error(f"❌ Model training or SHAP failed: {e}")
-
-# Cross-species analysis
-st.sidebar.header("🧬 Cross-Species Evaluation")
-human_file = st.sidebar.file_uploader("Upload annotated human .csv", type=["csv"], key="human")
-mouse_file = st.sidebar.file_uploader("Upload annotated mouse .csv", type=["csv"], key="mouse")
-ortholog_file = st.sidebar.file_uploader("Upload ortholog CSV", type=["csv"], key="ortholog")
-
-if st.sidebar.button("🚀 Run Cross-Species") and human_file and mouse_file and ortholog_file:
-    try:
-        st.header("🔁 Cross-Species Analysis")
-        human_df = pd.read_csv(human_file, index_col=0)
         mouse_df = pd.read_csv(mouse_file, index_col=0)
-        ortholog_df = pd.read_csv(ortholog_file)
+        human_df = pd.read_csv(human_file, index_col=0)
 
-        results = map_orthologs_cross_species(mouse_df, human_df, ortholog_df)
-        st.success("✅ Cross-species mapping complete")
-        st.write("🔬 Prediction preview:", results.head())
+        st.success("✅ Both files loaded successfully.")
+        st.write(f"🐭 Mouse shape: {mouse_df.shape}")
+        st.write(f"👤 Human shape: {human_df.shape}")
+
+        # Load ortholog map and align
+        ortholog_map = load_ortholog_map()
+        mouse_aligned, human_aligned, shared_genes = align_gene_symbols(mouse_df, human_df, ortholog_map)
+
+        st.write(f"✅ Shared genes: {len(shared_genes)}")
+        st.write(f"🧬 Sample shared genes:\n{shared_genes[:10]}")
+
+        if len(shared_genes) < 2:
+            st.error("❌ Too few shared genes for modeling.")
+            st.stop()
+
+        # Prepare X and y
+        X_mouse = clean_and_scale(mouse_aligned)
+        X_human = clean_and_scale(human_aligned)
+        y_mouse = np.array([-1 if "noDVT" in s else 1 for s in mouse_aligned.index])  # Example label logic
+
+        # Train on mouse, predict on human
+        st.subheader("🧠 Train on Mouse ➜ Predict on Human")
+        model = train_model(X_mouse, y_mouse)
+        preds = predict(model, X_human)
+
+        st.write("🎯 Prediction outputs:")
+        st.dataframe(pd.DataFrame({"Sample": X_human.index, "Prediction": preds}))
+
+        # Optional SHAP
+        st.subheader("🔍 SHAP Feature Importance (Mouse Model)")
+        try:
+            shap_summary_plot(model, X_mouse)
+        except Exception as e:
+            st.warning(f"⚠️ SHAP plot failed: {e}")
+
     except Exception as e:
-        st.error(f"❌ Cross-species error: {e}")
+        st.error(f"❌ Failed to load or process CSVs: {e}")
