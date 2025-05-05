@@ -52,6 +52,10 @@ try:
     mouse_scaled = clean_and_scale(mouse_aligned)
     human_scaled = clean_and_scale(human_aligned)
 
+    # Confirm structure
+    st.write("🧪 Is human_scaled a DataFrame?", isinstance(human_scaled, pd.DataFrame))
+    st.write("🧪 Feature columns:", human_scaled.columns[:5])
+
     # 3. Train model on mouse data
     st.header("🧪 Training on Mouse Data")
     model, metrics = train_model(mouse_scaled, y_mouse)
@@ -82,11 +86,6 @@ try:
 
         enrich_df = enrich_genes(top_genes, library="GO_Biological_Process_2021", top_n=10)
         st.dataframe(enrich_df)
-
-except Exception as e:
-    st.error("❌ Failed to load or process data.")
-    st.exception(e)
-
 
 except Exception as e:
     st.error("❌ Failed to load or process data.")
