@@ -7,3 +7,4 @@ matplotlib
 gprofiler-official
 mygene
 GEOparse
+requests
