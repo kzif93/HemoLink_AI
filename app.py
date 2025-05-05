@@ -15,9 +15,13 @@ from model_training import train_model
 from prediction import predict_on_human
 from explainability import generate_shap_plots
 from enrichment import enrich_genes
+from data_fetcher import dataset_search_ui
 
 # Set wide layout and page title
 st.set_page_config(page_title="HemoLink_AI", layout="wide")
+
+# Show dataset search in the sidebar
+dataset_search_ui()
 
 # -------------------- HEADER --------------------
 st.markdown("""
@@ -34,6 +38,17 @@ st.markdown("""
 st.info("📂 Loading and aligning data...")
 
 try:
+    # Detect available GEO datasets in ./data
+    dataset_files = [f for f in os.listdir("data") if f.endswith("_expression.csv")]
+    dataset_choice = st.sidebar.selectbox("🧪 Select a downloaded human dataset to use", dataset_files)
+
+    if dataset_choice:
+        human_df = pd.read_csv(os.path.join("data", dataset_choice), index_col=0)
+    else:
+        st.warning("Please download or select a dataset first.")
+        st.stop()
+
+    # Static mouse dataset (for now)
     mouse_df = pd.read_csv("GSE125965_annotated_cleaned.csv", index_col=0).T
     y_mouse = pd.Series({
         "GSM3586432": 0,
@@ -42,7 +57,7 @@ try:
         "GSM3586435": 1
     })
 
-    human_df = pd.read_csv("data/compressed_data.csv.gz", compression="gzip", index_col=0)
+    # Load ortholog mapping
     ortholog_df = pd.read_csv("data/mouse_to_human_orthologs.csv")
 
     mouse_df.columns = mouse_df.columns.str.upper()
@@ -50,7 +65,7 @@ try:
     ortholog_df["mouse_symbol"] = ortholog_df["mouse_symbol"].str.upper()
     ortholog_df["human_symbol"] = ortholog_df["human_symbol"].str.upper()
 
-    st.success("✅ Data loaded and normalized.")
+    st.success(f"✅ Using {dataset_choice} and mouse dataset.")
 
     # -------------------- ALIGNMENT --------------------
     mouse_aligned, human_aligned = map_orthologs(mouse_df, human_df, ortholog_df)
