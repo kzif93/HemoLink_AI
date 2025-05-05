@@ -52,7 +52,6 @@ try:
     mouse_scaled = clean_and_scale(mouse_aligned)
     human_scaled = clean_and_scale(human_aligned)
 
-    # Confirm structure
     st.write("🧪 Is human_scaled a DataFrame?", isinstance(human_scaled, pd.DataFrame))
     st.write("🧪 Feature columns:", human_scaled.columns[:5])
 
@@ -79,13 +78,19 @@ try:
         st.subheader("🧬 GO/Pathway Enrichment for Top SHAP Genes")
 
         mean_shap = np.abs(shap_matrix).mean(axis=0)
-        top_gene_indices = np.argsort(mean_shap)[::-1][:20]
-        top_genes = [gene_names[i] for i in top_gene_indices]
+        nonzero_mask = mean_shap > 1e-5
 
-        st.write("🧬 Top SHAP genes selected for enrichment:", top_genes)
+        if not any(nonzero_mask):
+            st.warning("⚠️ All SHAP values are near-zero. No meaningful genes to enrich.")
+            top_genes = []
+        else:
+            filtered_indices = np.argsort(mean_shap[nonzero_mask])[::-1][:20]
+            top_gene_indices = np.where(nonzero_mask)[0][filtered_indices]
+            top_genes = [gene_names[i] for i in top_gene_indices]
+            st.write("🧬 Top SHAP genes selected for enrichment:", top_genes)
 
-        enrich_df = enrich_genes(top_genes, library="GO_Biological_Process_2021", top_n=10)
-        st.dataframe(enrich_df)
+            enrich_df = enrich_genes(top_genes, library="GO_Biological_Process_2021", top_n=10)
+            st.dataframe(enrich_df)
 
 except Exception as e:
     st.error("❌ Failed to load or process data.")
