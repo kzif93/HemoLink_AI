@@ -5,11 +5,47 @@ import pandas as pd
 import requests
 import GEOparse
 import streamlit as st
+from xml.etree import ElementTree as ET
+
+# GEO keyword-based search using Entrez API
+def search_geo_by_keyword(query, retmax=5):
+    """
+    Search NCBI GEO for datasets matching a keyword and return GSE IDs and titles.
+    """
+    base_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
+    params = {
+        "db": "gds",
+        "term": query,
+        "retmode": "xml",
+        "retmax": retmax
+    }
+    response = requests.get(base_url, params=params)
+    tree = ET.fromstring(response.content)
+    ids = [id_elem.text for id_elem in tree.findall(".//Id")]
+
+    summaries = []
+    for gds_id in ids:
+        summary_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi"
+        summary_params = {
+            "db": "gds",
+            "id": gds_id,
+            "retmode": "xml"
+        }
+        sum_resp = requests.get(summary_url, params=summary_params)
+        sum_tree = ET.fromstring(sum_resp.content)
+        docsum = sum_tree.find(".//DocSum")
+        gse = title = None
+        for item in docsum.findall("Item"):
+            if item.attrib.get("Name") == "GSE":
+                gse = item.text
+            if item.attrib.get("Name") == "title":
+                title = item.text
+        if gse and title:
+            summaries.append((gse, title))
+
+    return summaries
 
 def fetch_geo_series(geo_id, out_dir="data"):
-    """
-    Download and extract expression matrix from GEO Series ID (e.g. GSE16561).
-    """
     os.makedirs(out_dir, exist_ok=True)
     gse = GEOparse.get_GEO(geo=geo_id, destdir=out_dir)
     df = gse.pivot_samples('VALUE')
@@ -19,47 +55,36 @@ def fetch_geo_series(geo_id, out_dir="data"):
     return df
 
 def search_refinebio(query, limit=5):
-    """
-    Search refine.bio API for datasets matching a query string.
-    """
-    url = f"https://api.refine.bio/v1/dataset/?search={query}&limit={limit}"
-    r = requests.get(url)
-    if r.status_code != 200:
-        st.error("Refine.bio API request failed")
+    try:
+        url = f"https://api.refine.bio/v1/search/?search={query}&limit={limit}"
+        r = requests.get(url)
+        r.raise_for_status()
+        data = r.json()
+        return data.get("results", [])
+    except Exception as e:
+        st.error(f"Refine.bio search failed: {e}")
         return []
-    results = r.json()
-    return results.get("results", [])
 
 def list_refinebio_titles(results):
-    """
-    Utility to print dataset accession and title from search results.
-    """
     titles = []
     for ds in results:
         titles.append(f"{ds['accession_code']}: {ds['title']}")
     return titles
 
-# Streamlit Sidebar Integration
 def dataset_search_ui():
     st.sidebar.markdown("### 🔍 Search Public Datasets")
     query = st.sidebar.text_input("Search keyword (e.g. stroke, thrombosis)", "stroke")
 
-    if st.sidebar.button("Search GEO"):
-        try:
-            fetch_geo_series(query)
-        except Exception as e:
-            st.sidebar.error(f"Error: {e}")
+    if st.sidebar.button("Search GEO (Entrez)"):
+        geo_hits = search_geo_by_keyword(query)
+        st.sidebar.markdown("**Top GEO Results:**")
+        for gse_id, title in geo_hits:
+            if st.sidebar.button(f"⬇️ {gse_id}"):
+                fetch_geo_series(gse_id)
 
     if st.sidebar.button("Search Refine.bio"):
         results = search_refinebio(query)
         titles = list_refinebio_titles(results)
-        st.sidebar.markdown("**Top Matches:**")
+        st.sidebar.markdown("**Top Refine.bio Results:**")
         for title in titles:
             st.sidebar.write(title)
-
-# Example usage for CLI
-if __name__ == "__main__":
-    fetch_geo_series("GSE16561")
-    res = search_refinebio("stroke")
-    for line in list_refinebio_titles(res):
-        print(line)
