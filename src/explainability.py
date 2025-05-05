@@ -5,15 +5,17 @@ import matplotlib.pyplot as plt
 import streamlit as st
 import numpy as np
 
-def generate_shap_plots(model, X):
+def generate_shap_plots(model, X, return_values=False):
     # Create SHAP explainer
     explainer = shap.Explainer(model, X)
-    shap_values = explainer(X)  # shape: (samples, features, classes)
+    shap_values = explainer(X)
 
-    # Multiclass shape (samples, features, classes)
+    # Detect SHAP shape: multiclass or not
     if len(shap_values.shape) == 3:
-        shap_matrix = shap_values[..., 1]  # Class 1 (DVT)
+        # Multiclass or binary: use class 1 (DVT)
+        shap_matrix = shap_values[..., 1]
     else:
+        # Single output: regression or binary 1-class fallback
         shap_matrix = shap_values.values
 
     # Streamlit debug output
@@ -27,4 +29,6 @@ def generate_shap_plots(model, X):
     # Plot summary
     fig = plt.figure(figsize=(10, 6))
     shap.summary_plot(shap_matrix, X, plot_type="dot", show=False, max_display=10)
-    return fig
+
+    # Return both the plot and the SHAP matrix if requested
+    return (fig, shap_matrix) if return_values else fig
