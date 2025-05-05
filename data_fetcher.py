@@ -42,11 +42,14 @@ def search_geo_by_keyword(query, retmax=20):
                 gse = item.text
             if item.attrib.get("Name") == "title":
                 title = item.text
-        if gse and title:
-            st.sidebar.write(f"Found: {gse} — {title}")
-            summaries.append((gse, title))
 
-    st.sidebar.write(f"🔍 Found {len(summaries)} matching GSEs.")
+        if gse and title and gse.startswith("GSE"):
+            st.sidebar.write(f"✅ Valid GSE: {gse} — {title}")
+            summaries.append((gse, title))
+        else:
+            st.sidebar.write(f"❌ Skipped non-GSE entry (GSE={gse})")
+
+    st.sidebar.write(f"🔍 Found {len(summaries)} valid GSEs.")
     return summaries
 
 def fetch_geo_series(geo_id, out_dir="data"):
