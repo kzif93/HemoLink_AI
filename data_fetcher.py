@@ -9,9 +9,6 @@ from xml.etree import ElementTree as ET
 
 # GEO keyword-based search using Entrez API
 def search_geo_by_keyword(query, retmax=20):
-    """
-    Search NCBI GEO for datasets matching a keyword and return GSE IDs and titles.
-    """
     base_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
     params = {
         "db": "gds",
@@ -36,7 +33,7 @@ def search_geo_by_keyword(query, retmax=20):
         try:
             sum_tree = ET.fromstring(sum_resp.content)
         except ET.ParseError:
-            continue  # skip malformed XML
+            continue
 
         docsum = sum_tree.find(".//DocSum")
         gse = title = None
@@ -82,10 +79,19 @@ def dataset_search_ui():
 
     if st.sidebar.button("Search GEO (Entrez)"):
         geo_hits = search_geo_by_keyword(query)
+        st.session_state["geo_hits"] = geo_hits
+
+    geo_hits = st.session_state.get("geo_hits", [])
+    if geo_hits:
         st.sidebar.markdown("**Top GEO Results:**")
         for i, (gse_id, title) in enumerate(geo_hits):
             if st.sidebar.button(f"⬇️ {gse_id}", key=f"geo_download_{i}"):
-                fetch_geo_series(gse_id)
+                st.session_state["gse_to_download"] = gse_id
+
+    if "gse_to_download" in st.session_state:
+        gse_id = st.session_state.pop("gse_to_download")
+        st.sidebar.write(f"⏳ Downloading {gse_id} ...")
+        fetch_geo_series(gse_id)
 
     if st.sidebar.button("Search Refine.bio"):
         results = search_refinebio(query)
