@@ -22,10 +22,10 @@ st.set_page_config(page_title="HemoLink_AI", layout="wide")
 # -------------------- HEADER --------------------
 st.markdown("""
     <div style="display: flex; align-items: center; gap: 15px;">
-        <img src="https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/assets/logo.png" width="60">
+        <img src="https://raw.githubusercontent.com/kzif93/HemoLink_AI/main/assets/logo.png" width="60">
         <div>
             <h1 style="margin-bottom: 0;">HemoLink_AI</h1>
-            <span style="font-size: 1.1rem; color: #aaa;">From genes to models: AI for cross-species disease insight</span>
+            <h3 style="margin-top: 0; color: #ccc;">🧬 From genes to models: AI for cross-species disease insight</h3>
         </div>
     </div>
 """, unsafe_allow_html=True)
