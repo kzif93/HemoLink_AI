@@ -13,7 +13,7 @@ from preprocessing import clean_and_scale
 from ortholog_mapper import map_orthologs
 from model_training import train_model
 from prediction import predict_on_human
-from explainability import generate_shap_plots, extract_shap_values
+from explainability import generate_shap_plots
 from enrichment import enrich_genes
 
 st.set_page_config(page_title="HemoLink_AI", layout="wide")
