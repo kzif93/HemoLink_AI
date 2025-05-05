@@ -13,7 +13,7 @@ def search_geo_by_keyword(query, retmax=20):
     base_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
     params = {
         "db": "gds",
-        "term": query,
+        "term": f"{query} AND gse[Entry Type]",
         "retmode": "xml",
         "retmax": retmax
     }
@@ -39,17 +39,16 @@ def search_geo_by_keyword(query, retmax=20):
         docsum = sum_tree.find(".//DocSum")
         title = gse_id = None
         for item in docsum.findall("Item"):
+            if item.attrib.get("Name") == "Accession":
+                gse_id = item.text
             if item.attrib.get("Name") == "title":
                 title = item.text
-                match = re.search(r"(GSE\d+)", title or "")
-                if match:
-                    gse_id = match.group(1)
 
-        if gse_id and title:
-            st.sidebar.write(f"✅ Fallback GSE: {gse_id} — {title}")
+        if gse_id and title and gse_id.startswith("GSE"):
+            st.sidebar.write(f"✅ Valid GSE: {gse_id} — {title}")
             summaries.append((gse_id, title))
         else:
-            st.sidebar.write(f"❌ Skipped entry (ID={gds_id}) — No GSE match")
+            st.sidebar.write(f"❌ Skipped entry (ID={gds_id}) — No valid GSE")
 
     st.sidebar.write(f"🔍 Found {len(summaries)} valid GSEs.")
     return summaries
