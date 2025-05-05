@@ -8,7 +8,7 @@ import streamlit as st
 from xml.etree import ElementTree as ET
 
 # GEO keyword-based search using Entrez API
-def search_geo_by_keyword(query, retmax=5):
+def search_geo_by_keyword(query, retmax=20):
     """
     Search NCBI GEO for datasets matching a keyword and return GSE IDs and titles.
     """
@@ -83,8 +83,8 @@ def dataset_search_ui():
     if st.sidebar.button("Search GEO (Entrez)"):
         geo_hits = search_geo_by_keyword(query)
         st.sidebar.markdown("**Top GEO Results:**")
-        for gse_id, title in geo_hits:
-            if st.sidebar.button(f"⬇️ {gse_id}"):
+        for i, (gse_id, title) in enumerate(geo_hits):
+            if st.sidebar.button(f"⬇️ {gse_id}", key=f"geo_download_{i}"):
                 fetch_geo_series(gse_id)
 
     if st.sidebar.button("Search Refine.bio"):
