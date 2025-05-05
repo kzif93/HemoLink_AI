@@ -74,10 +74,24 @@ try:
         shap_fig, shap_matrix, gene_names = generate_shap_plots(model, human_scaled, return_values=True)
         st.pyplot(shap_fig)
 
-        # ➕ GO/Pathway Enrichment (Override version)
+        # ➕ GO/Pathway Enrichment
         st.subheader("🧬 GO/Pathway Enrichment for Top SHAP Genes")
 
-        # 🔁 Manual override for top SHAP genes (testing only)
-        top_genes = [
-            "TRIM27", "ZMIZ1", "BTC", "HOOK2", "KRT32",
-            "PTPN21", "CCL5", "ALDH1L1", "YWHAE", "SLC
+        mean_shap = np.abs(shap_matrix).mean(axis=0)
+        nonzero_mask = mean_shap > 1e-5
+
+        if not any(nonzero_mask):
+            st.warning("⚠️ All SHAP values are near-zero. No meaningful genes to enrich.")
+            top_genes = []
+        else:
+            filtered_indices = np.argsort(mean_shap[nonzero_mask])[::-1][:20]
+            top_gene_indices = np.where(nonzero_mask)[0][filtered_indices]
+            top_genes = [gene_names[i] for i in top_gene_indices]
+            st.write("🧬 Top SHAP genes selected for enrichment:", top_genes)
+
+            enrich_df = enrich_genes(top_genes, library="GO_Biological_Process_2021", top_n=10)
+            st.dataframe(enrich_df)
+
+except Exception as e:
+    st.error("❌ Failed to load or process data.")
+    st.exception(e)
