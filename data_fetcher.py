@@ -42,9 +42,11 @@ def search_geo_by_keyword(query, retmax=20):
                 gse = item.text
             if item.attrib.get("Name") == "title":
                 title = item.text
-        if gse and title and gse.startswith("GSE"):
+        if gse and title:
+            st.sidebar.write(f"Found: {gse} — {title}")
             summaries.append((gse, title))
 
+    st.sidebar.write(f"🔍 Found {len(summaries)} matching GSEs.")
     return summaries
 
 def fetch_geo_series(geo_id, out_dir="data"):
@@ -96,6 +98,9 @@ def dataset_search_ui():
         gse_id = st.session_state.pop("gse_to_download")
         st.sidebar.write(f"⏳ Downloading {gse_id} ...")
         fetch_geo_series(gse_id)
+
+    if st.sidebar.button("⬇️ Download GSE16561 (Test)"):
+        fetch_geo_series("GSE16561")
 
     if st.sidebar.button("Search Refine.bio"):
         results = search_refinebio(query)
