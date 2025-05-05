@@ -68,23 +68,25 @@ try:
     # 5. SHAP Explainability
     st.header("🧬 SHAP Explainability")
     if st.checkbox("Show SHAP explanations"):
-        shap_fig, shap_matrix = generate_shap_plots(model, human_scaled, return_values=True)
+        shap_fig, shap_matrix, gene_names = generate_shap_plots(model, human_scaled, return_values=True)
         st.pyplot(shap_fig)
 
         # ➕ GO/Pathway Enrichment
         st.subheader("🧬 GO/Pathway Enrichment for Top SHAP Genes")
 
-        st.write("📊 SHAP matrix shape:", shap_matrix.shape)
         mean_shap = np.abs(shap_matrix).mean(axis=0)
-
         top_gene_indices = np.argsort(mean_shap)[::-1][:20]
-        top_genes = human_scaled.columns[top_gene_indices].tolist()
+        top_genes = [gene_names[i] for i in top_gene_indices]
 
-        # DEBUG SHAP gene list
         st.write("🧬 Top SHAP genes selected for enrichment:", top_genes)
 
         enrich_df = enrich_genes(top_genes, library="GO_Biological_Process_2021", top_n=10)
         st.dataframe(enrich_df)
+
+except Exception as e:
+    st.error("❌ Failed to load or process data.")
+    st.exception(e)
+
 
 except Exception as e:
     st.error("❌ Failed to load or process data.")
