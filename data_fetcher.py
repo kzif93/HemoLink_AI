@@ -36,18 +36,18 @@ def search_geo_by_keyword(query, retmax=20):
             continue
 
         docsum = sum_tree.find(".//DocSum")
-        gse = title = None
+        gse_id = title = None
         for item in docsum.findall("Item"):
-            if item.attrib.get("Name") == "GSE":
-                gse = item.text
+            if item.attrib.get("Name") == "Accession" and item.attrib.get("Type") == "GSE":
+                gse_id = item.text
             if item.attrib.get("Name") == "title":
                 title = item.text
 
-        if gse and title and gse.startswith("GSE"):
-            st.sidebar.write(f"✅ Valid GSE: {gse} — {title}")
-            summaries.append((gse, title))
+        if gse_id and title and gse_id.startswith("GSE"):
+            st.sidebar.write(f"✅ Valid GSE: {gse_id} — {title}")
+            summaries.append((gse_id, title))
         else:
-            st.sidebar.write(f"❌ Skipped non-GSE entry (GSE={gse})")
+            st.sidebar.write(f"❌ Skipped entry (ID={gds_id})")
 
     st.sidebar.write(f"🔍 Found {len(summaries)} valid GSEs.")
     return summaries
