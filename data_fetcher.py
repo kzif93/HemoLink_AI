@@ -32,7 +32,12 @@ def search_geo_by_keyword(query, retmax=5):
             "retmode": "xml"
         }
         sum_resp = requests.get(summary_url, params=summary_params)
-        sum_tree = ET.fromstring(sum_resp.content)
+
+        try:
+            sum_tree = ET.fromstring(sum_resp.content)
+        except ET.ParseError:
+            continue  # skip malformed XML
+
         docsum = sum_tree.find(".//DocSum")
         gse = title = None
         for item in docsum.findall("Item"):
