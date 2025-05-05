@@ -74,9 +74,14 @@ try:
         # ➕ GO/Pathway Enrichment
         st.subheader("🧬 GO/Pathway Enrichment for Top SHAP Genes")
 
+        st.write("📊 SHAP matrix shape:", shap_matrix.shape)
         mean_shap = np.abs(shap_matrix).mean(axis=0)
+
         top_gene_indices = np.argsort(mean_shap)[::-1][:20]
         top_genes = human_scaled.columns[top_gene_indices].tolist()
+
+        # DEBUG SHAP gene list
+        st.write("🧬 Top SHAP genes selected for enrichment:", top_genes)
 
         enrich_df = enrich_genes(top_genes, library="GO_Biological_Process_2021", top_n=10)
         st.dataframe(enrich_df)
