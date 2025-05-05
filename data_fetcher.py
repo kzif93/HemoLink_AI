@@ -42,19 +42,23 @@ def search_geo_by_keyword(query, retmax=20):
                 gse = item.text
             if item.attrib.get("Name") == "title":
                 title = item.text
-        if gse and title:
+        if gse and title and gse.startswith("GSE"):
             summaries.append((gse, title))
 
     return summaries
 
 def fetch_geo_series(geo_id, out_dir="data"):
     os.makedirs(out_dir, exist_ok=True)
-    gse = GEOparse.get_GEO(geo=geo_id, destdir=out_dir)
-    df = gse.pivot_samples('VALUE')
-    clean_path = os.path.join(out_dir, f"{geo_id}_expression.csv")
-    df.to_csv(clean_path)
-    st.success(f"✅ Saved GEO data to {clean_path}")
-    return df
+    try:
+        gse = GEOparse.get_GEO(geo=geo_id, destdir=out_dir)
+        df = gse.pivot_samples('VALUE')
+        clean_path = os.path.join(out_dir, f"{geo_id}_expression.csv")
+        df.to_csv(clean_path)
+        st.success(f"✅ Saved GEO data to {clean_path}")
+        return df
+    except Exception as e:
+        st.error(f"❌ Failed to download or process {geo_id}: {e}")
+        return None
 
 def search_refinebio(query, limit=5):
     try:
@@ -83,7 +87,7 @@ def dataset_search_ui():
 
     geo_hits = st.session_state.get("geo_hits", [])
     if geo_hits:
-        st.sidebar.markdown("**Top GEO Results:**")
+        st.sidebar.markdown("**Top GEO Results (Series Only):**")
         for i, (gse_id, title) in enumerate(geo_hits):
             if st.sidebar.button(f"⬇️ {gse_id}", key=f"geo_download_{i}"):
                 st.session_state["gse_to_download"] = gse_id
