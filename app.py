@@ -4,6 +4,7 @@ import os
 import sys
 import streamlit as st
 import pandas as pd
+import numpy as np
 
 # Extend sys path to access src/
 sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
@@ -12,7 +13,8 @@ from preprocessing import clean_and_scale
 from ortholog_mapper import map_orthologs
 from model_training import train_model
 from prediction import predict_on_human
-from explainability import generate_shap_plots
+from explainability import generate_shap_plots, extract_shap_values
+from enrichment import enrich_genes
 
 st.set_page_config(page_title="HemoLink_AI", layout="wide")
 st.title("🧠 HemoLink_AI: Cross-Species Thrombosis Predictor")
@@ -20,18 +22,18 @@ st.title("🧠 HemoLink_AI: Cross-Species Thrombosis Predictor")
 try:
     st.info("📂 Loading datasets from local repository...")
 
-    # ✅ Load and transpose mouse data
+    # Load and transpose mouse data
     mouse_df = pd.read_csv("GSE125965_annotated_cleaned.csv", index_col=0).T
 
-    # ✅ Manually assign labels from known metadata
+    # Manual label assignment
     y_mouse = pd.Series({
-        "GSM3586432": 0,  # Sham
-        "GSM3586433": 1,  # DVT
-        "GSM3586434": 0,  # Sham
-        "GSM3586435": 1   # DVT
+        "GSM3586432": 0,
+        "GSM3586433": 1,
+        "GSM3586434": 0,
+        "GSM3586435": 1
     })
 
-    # ✅ Load human and ortholog files
+    # Load human and ortholog files
     human_df = pd.read_csv("data/compressed_data.csv.gz", compression="gzip", index_col=0)
     ortholog_df = pd.read_csv("data/mouse_to_human_orthologs.csv")
 
@@ -63,11 +65,21 @@ try:
     except IndexError:
         st.warning("⚠️ Model was trained on a single class — skipping probability predictions.")
 
-    # 5. SHAP explanations
+    # 5. SHAP Explainability
     st.header("🧬 SHAP Explainability")
     if st.checkbox("Show SHAP explanations"):
-        shap_fig = generate_shap_plots(model, human_scaled)
+        shap_fig, shap_matrix = generate_shap_plots(model, human_scaled, return_values=True)
         st.pyplot(shap_fig)
+
+        # ➕ GO/Pathway Enrichment
+        st.subheader("🧬 GO/Pathway Enrichment for Top SHAP Genes")
+
+        mean_shap = np.abs(shap_matrix).mean(axis=0)
+        top_gene_indices = np.argsort(mean_shap)[::-1][:20]
+        top_genes = human_scaled.columns[top_gene_indices].tolist()
+
+        enrich_df = enrich_genes(top_genes, library="GO_Biological_Process_2021", top_n=10)
+        st.dataframe(enrich_df)
 
 except Exception as e:
     st.error("❌ Failed to load or process data.")
