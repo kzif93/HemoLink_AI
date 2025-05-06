@@ -3,32 +3,25 @@ import GEOparse
 import pandas as pd
 import os
 
-# Set your email to comply with NCBI Entrez policy
-Entrez.email = "your.email@example.com"  # <-- replace with your real email
+# Required by NCBI for usage tracking — replace with your actual email
+Entrez.email = "your.email@example.com"
+
 
 def search_geo_datasets(query, max_results=10):
     """
-    Searches GEO DataSets (GDS) for matching studies based on a keyword.
+    Searches GEO Series (GSE) database for relevant expression datasets by keyword.
 
     Args:
-        query (str): Disease or keyword to search for.
-        max_results (int): Max number of datasets to return.
+        query (str): Keyword such as 'stroke', 'thrombosis', etc.
+        max_results (int): Max number of GSE datasets to return.
 
     Returns:
-        List of GSE IDs (e.g., ['GSE16561', 'GSE22255'])
+        List of GSE IDs like ['GSE16561', 'GSE22255']
     """
-    handle = Entrez.esearch(db="gds", term=query, retmax=max_results)
+    term = f"{query} AND Homo sapiens[Organism] AND expression profiling by array[DataSet Type]"
+    handle = Entrez.esearch(db="gse", term=term, retmax=max_results)
     record = Entrez.read(handle)
-    id_list = record["IdList"]
-
-    gse_ids = []
-    for gid in id_list:
-        summary = Entrez.read(Entrez.esummary(db="gds", id=gid))
-        title = summary[0]["title"]
-        if "GSE" in title:
-            gse_id = title.split(" ")[0]
-            gse_ids.append(gse_id)
-
+    gse_ids = ["GSE" + geo_id for geo_id in record["IdList"]]
     return gse_ids
 
 
@@ -41,14 +34,13 @@ def fetch_geo_platform_matrix(gse_id, destdir="data"):
         destdir (str): Directory to store downloaded files.
 
     Returns:
-        pd.DataFrame: Expression matrix (samples as columns, genes as rows)
+        pd.DataFrame: Expression matrix with genes as rows, samples as columns.
     """
     gse = GEOparse.get_GEO(geo=gse_id, destdir=destdir, annotate_gpl=True)
 
-    # Extract and pivot sample data into a matrix
+    # Extract and pivot sample data into a gene x sample matrix
     df = gse.pivot_samples("VALUE")
     df.index.name = "Gene"
     df = df.reset_index().dropna()
 
-    # Return as a tidy DataFrame
     return df
