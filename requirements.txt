@@ -8,3 +8,4 @@ gprofiler-official
 mygene
 GEOparse
 requests
+xgboost
