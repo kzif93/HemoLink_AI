@@ -1,14 +1,18 @@
 # reverse_modeling.py
 
 import os
+import sys
 import pandas as pd
 from sklearn.metrics import roc_auc_score
+
+# Ensure src modules are importable
+sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
+
 from src.ortholog_mapper import map_orthologs
 from src.preprocessing import clean_and_scale
 from src.model_training import train_model
 from src.prediction import predict_on_human
 from src.explainability import extract_shap_values
-from src.enrichment import enrich_genes
 
 
 def evaluate_mouse_models(human_df, y_human, ortholog_df, model_dir="animal_models"):
