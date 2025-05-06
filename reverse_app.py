@@ -1,48 +1,89 @@
-# reverse_app.py
-
-import os
-import sys
 import streamlit as st
 import pandas as pd
+import os
+import sys
 
-sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
-from reverse_modeling import evaluate_mouse_models
+# Extend sys.path to include the src folder
+sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 
-st.set_page_config(page_title="Reverse Modeling AI", layout="wide")
+from model_training import train_model
+from prediction import test_model_on_dataset
+from ortholog_mapper import map_human_to_model_genes
+from explainability import extract_shap_values, compare_shap_vectors
+from reverse_modeling import list_animal_datasets
+from preprocessing import preprocess_dataset
 
-# -------------------- HEADER --------------------
+# --- App Config ---
+st.set_page_config(
+    page_title="HemoLink_AI – Reverse Modeling",
+    layout="wide",
+    page_icon="🧬",
+)
+
+st.title("🧬 Reverse Modeling – Match Human Data to Animal Models")
+
 st.markdown("""
-    <h1>🔁 Reverse Translational Model Discovery</h1>
-    <h4 style='color: gray;'>Train on human data ➜ discover best-fitting animal models</h4>
-""", unsafe_allow_html=True)
+Upload a **human transcriptomic dataset** and binary labels. HemoLink_AI will evaluate all available preprocessed animal datasets and identify the best-fit model(s) based on:
+- Gene ortholog overlap
+- Predictive performance (AUC)
+- SHAP feature importance similarity
+""")
 
-# -------------------- UPLOAD --------------------
-st.markdown("### 🧬 Upload Human Expression Data")
-human_file = st.file_uploader("CSV file (samples as rows, gene symbols as columns)", type=["csv"])
-label_input = st.text_area("Paste binary labels (comma-separated, e.g., 1,0,0,1)")
+# --- File Upload ---
+uploaded_file = st.file_uploader("📄 Upload human expression CSV", type=["csv"])
+label_col = st.text_input("🔠 Name of the binary label column (e.g. 'disease')")
 
-# -------------------- LOAD ORTHOLOGS --------------------
-ortholog_path = "data/mouse_to_human_orthologs.csv"
-if not os.path.exists(ortholog_path):
-    st.error("Ortholog map not found at data/mouse_to_human_orthologs.csv")
-else:
-    ortholog_df = pd.read_csv(ortholog_path)
+if uploaded_file and label_col:
+    try:
+        # Load and preprocess human dataset
+        human_df = pd.read_csv(uploaded_file)
+        X_human, y_human = preprocess_dataset(human_df, label_col)
 
-# -------------------- RUN --------------------
-if human_file and label_input:
-    human_df = pd.read_csv(human_file, index_col=0)
-    y = pd.Series([int(x) for x in label_input.strip().split(",")])
+        # Train model on human data
+        model = train_model(X_human, y_human)
 
-    st.success(f"✅ Loaded {human_df.shape[0]} samples and {human_df.shape[1]} genes.")
+        # Locate animal datasets
+        model_folder = "animal_models"
+        animal_files = list_animal_datasets(model_folder)
 
-    with st.spinner("🔁 Evaluating animal models..."):
-        summary_df = evaluate_mouse_models(human_df, y, ortholog_df)
-        st.markdown("### 📊 Model Ranking")
-        st.dataframe(summary_df, use_container_width=True)
+        st.subheader("📊 Evaluation Results")
+        results = []
 
-        if st.button("💾 Export Results"):
-            summary_df.to_csv("reverse_model_summary.csv", index=False)
-            st.success("Saved to reverse_model_summary.csv")
+        for file in animal_files:
+            try:
+                animal_path = os.path.join(model_folder, file)
+                animal_df = pd.read_csv(animal_path)
 
-else:
-    st.info("Please upload your human dataset and provide class labels to begin.")
+                # Map orthologs and align features
+                shared_genes, X_animal = map_human_to_model_genes(X_human.columns, animal_df)
+
+                if len(shared_genes) < 10:
+                    continue  # skip models with insufficient gene overlap
+
+                # Make predictions and compute AUC
+                auc_score, y_pred = test_model_on_dataset(model, X_animal[shared_genes])
+
+                # Extract SHAP values for similarity comparison
+                shap_human = extract_shap_values(model, X_human[shared_genes])
+                shap_animal = extract_shap_values(model, X_animal[shared_genes])
+                shap_similarity = compare_shap_vectors(shap_human, shap_animal)
+
+                results.append({
+                    "Model File": file,
+                    "Shared Genes": len(shared_genes),
+                    "AUC": round(auc_score, 3),
+                    "SHAP Similarity": round(shap_similarity, 3),
+                })
+
+            except Exception as e:
+                st.warning(f"⚠️ Skipping {file}: {e}")
+                continue
+
+        if results:
+            result_df = pd.DataFrame(results).sort_values(by="SHAP Similarity", ascending=False)
+            st.dataframe(result_df)
+        else:
+            st.info("No suitable animal models found with sufficient shared orthologs.")
+
+    except Exception as e:
+        st.error(f"❌ Error: {e}")
