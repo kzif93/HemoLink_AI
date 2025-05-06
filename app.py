@@ -16,12 +16,9 @@ from prediction import predict_on_human
 from explainability import generate_shap_plots
 from enrichment import enrich_genes
 from data_fetcher import dataset_search_ui
+from probe_mapper import download_platform_annotation, map_probes_to_genes
 
-# Set wide layout and page title
 st.set_page_config(page_title="HemoLink_AI", layout="wide")
-
-# Show dataset search in the sidebar
-dataset_search_ui()
 
 # -------------------- HEADER --------------------
 st.markdown("""
@@ -34,21 +31,14 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
+# -------------------- GEO UI --------------------
+dataset_search_ui()
+
 # -------------------- DATA LOADING --------------------
 st.info("📂 Loading and aligning data...")
 
 try:
-    # Detect available GEO datasets in ./data
-    dataset_files = [f for f in os.listdir("data") if f.endswith("_expression.csv")]
-    dataset_choice = st.sidebar.selectbox("🧪 Select a downloaded human dataset to use", dataset_files)
-
-    if dataset_choice:
-        human_df = pd.read_csv(os.path.join("data", dataset_choice), index_col=0)
-    else:
-        st.warning("Please download or select a dataset first.")
-        st.stop()
-
-    # Static mouse dataset (for now)
+    # Load mouse dataset
     mouse_df = pd.read_csv("GSE125965_annotated_cleaned.csv", index_col=0).T
     y_mouse = pd.Series({
         "GSM3586432": 0,
@@ -57,15 +47,33 @@ try:
         "GSM3586435": 1
     })
 
-    # Load ortholog mapping
-    ortholog_df = pd.read_csv("data/mouse_to_human_orthologs.csv")
+    # Automatically select latest downloaded GEO expression file
+    human_files = [f for f in os.listdir("data") if f.endswith("_expression.csv")]
+    human_files.sort(reverse=True)
+    if not human_files:
+        raise FileNotFoundError("No GEO expression CSV found in data/ directory.")
 
+    latest_human_path = os.path.join("data", human_files[0])
+    st.success(f"✅ Using {os.path.basename(latest_human_path)} and mouse dataset.")
+    human_df = pd.read_csv(latest_human_path, index_col=0)
+
+    # Detect probe-style IDs (heuristic: 90%+ look like probes)
+    def looks_like_probe(val):
+        return str(val).endswith("_at") or str(val).isdigit()
+
+    probe_like = human_df.index.to_series().apply(looks_like_probe).mean()
+    if probe_like > 0.9:
+        st.warning("🔍 Detected probe-style IDs. Mapping to gene symbols...")
+        gse_id = os.path.basename(latest_human_path).split("_")[0]  # e.g. GSE16561
+        gpl_path = download_platform_annotation(gse_id)
+        human_df = map_probes_to_genes(latest_human_path, gpl_path)
+
+    # Uppercase for ortholog matching
     mouse_df.columns = mouse_df.columns.str.upper()
     human_df.columns = human_df.columns.str.upper()
+    ortholog_df = pd.read_csv("data/mouse_to_human_orthologs.csv")
     ortholog_df["mouse_symbol"] = ortholog_df["mouse_symbol"].str.upper()
     ortholog_df["human_symbol"] = ortholog_df["human_symbol"].str.upper()
-
-    st.success(f"✅ Using {dataset_choice} and mouse dataset.")
 
     # -------------------- ALIGNMENT --------------------
     mouse_aligned, human_aligned = map_orthologs(mouse_df, human_df, ortholog_df)
@@ -93,12 +101,12 @@ try:
 
         # -------------------- ENRICHMENT --------------------
         st.markdown("## 🧠 Pathway Enrichment (Top SHAP Genes)")
-        top_genes = [
-            "TRIM27", "ZMIZ1", "BTC", "HOOK2", "KRT32",
-            "PTPN21", "CCL5", "ALDH1L1", "YWHAE", "SLC25A3"
-        ]
-        enrich_df = enrich_genes(top_genes, library="GO_Biological_Process_2021", top_n=10)
-        st.dataframe(enrich_df)
+        top_genes = gene_names[:10] if gene_names else []
+        if top_genes:
+            enrich_df = enrich_genes(top_genes, library="GO_Biological_Process_2021", top_n=10)
+            st.dataframe(enrich_df)
+        else:
+            st.warning("⚠️ No genes available for enrichment analysis.")
 
 except Exception as e:
     st.error("❌ Something went wrong.")
