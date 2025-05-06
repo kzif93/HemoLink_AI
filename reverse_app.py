@@ -6,6 +6,7 @@ import sys
 # Extend sys.path to include the src folder
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 
+# Imports from src
 from model_training import train_model
 from prediction import test_model_on_dataset
 from ortholog_mapper import map_human_to_model_genes
@@ -23,7 +24,7 @@ st.set_page_config(
 st.title("🧬 Reverse Modeling – Match Human Data to Animal Models")
 
 st.markdown("""
-Upload a **human transcriptomic dataset** and binary labels. HemoLink_AI will evaluate all available preprocessed animal datasets and identify the best-fit model(s) based on:
+Upload a **human transcriptomic dataset** and binary labels. HemoLink_AI will evaluate all available animal models and rank them by:
 - Gene ortholog overlap
 - Predictive performance (AUC)
 - SHAP feature importance similarity
@@ -54,22 +55,29 @@ if uploaded_file and label_col:
                 animal_path = os.path.join(model_folder, file)
                 animal_df = pd.read_csv(animal_path)
 
-                # Map orthologs and align features
-                shared_genes, X_animal = map_human_to_model_genes(X_human.columns, animal_df)
+                # Automatically detect species from filename and map orthologs
+                shared_genes, X_animal = map_human_to_model_genes(
+                    human_genes=X_human.columns,
+                    animal_df=animal_df,
+                    ortholog_path='data/mouse_to_human_orthologs.csv',
+                    filename_hint=file
+                )
 
                 if len(shared_genes) < 10:
-                    continue  # skip models with insufficient gene overlap
+                    st.warning(f"⚠️ Skipping {file}: Only {len(shared_genes)} shared genes.")
+                    continue
 
-                # Make predictions and compute AUC
+                # Predict and evaluate AUC
                 auc_score, y_pred = test_model_on_dataset(model, X_animal[shared_genes])
 
-                # Extract SHAP values for similarity comparison
+                # Compare SHAP values
                 shap_human = extract_shap_values(model, X_human[shared_genes])
                 shap_animal = extract_shap_values(model, X_animal[shared_genes])
                 shap_similarity = compare_shap_vectors(shap_human, shap_animal)
 
                 results.append({
-                    "Model File": file,
+                    "Animal Model File": file,
+                    "Detected Species": file.split("_")[-1].replace(".csv", ""),
                     "Shared Genes": len(shared_genes),
                     "AUC": round(auc_score, 3),
                     "SHAP Similarity": round(shap_similarity, 3),
