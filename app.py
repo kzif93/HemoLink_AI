@@ -67,6 +67,7 @@ try:
         gse_id = os.path.basename(latest_human_path).split("_")[0]  # e.g. GSE16561
         gpl_path = download_platform_annotation(gse_id)
         human_df = map_probes_to_genes(latest_human_path, gpl_path)
+        human_df = human_df.T  # 🔄 transpose to make genes columns
 
     # Uppercase for ortholog matching
     mouse_df.columns = mouse_df.columns.str.upper()
