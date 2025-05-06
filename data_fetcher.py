@@ -57,16 +57,22 @@ def fetch_geo_series(geo_id, out_dir="data"):
     os.makedirs(out_dir, exist_ok=True)
     try:
         gse = GEOparse.get_GEO(geo=geo_id, destdir=out_dir)
+        df = None
+
         try:
             df = gse.pivot_samples("VALUE")
         except Exception as e:
-            st.warning(f"⚠️ Pivot failed: {e} — saving raw table.")
-            df = gse.table
+            st.warning(f"⚠️ Pivot failed: {e}")
+            if hasattr(gse, "table") and isinstance(gse.table, pd.DataFrame):
+                df = gse.table
+            else:
+                raise ValueError("No usable expression table available.")
 
         clean_path = os.path.join(out_dir, f"{geo_id}_expression.csv")
         df.to_csv(clean_path)
         st.success(f"✅ Saved GEO data to {clean_path}")
         return df
+
     except Exception as e:
         st.error(f"❌ Failed to download or process {geo_id}: {e}")
         return None
