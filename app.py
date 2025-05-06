@@ -75,6 +75,12 @@ try:
     ortholog_df["mouse_symbol"] = ortholog_df["mouse_symbol"].str.upper()
     ortholog_df["human_symbol"] = ortholog_df["human_symbol"].str.upper()
 
+    # ---------------- DEBUG --------------------
+    st.write("🧬 Sample human gene columns:", list(human_df.columns[:10]))
+    st.write("🧬 Sample ortholog human symbols:", list(ortholog_df["human_symbol"].unique()[:10]))
+    shared = set(human_df.columns).intersection(set(ortholog_df["human_symbol"]))
+    st.write(f"🧬 Shared gene symbols: {len(shared)}")
+
     # -------------------- ALIGNMENT --------------------
     mouse_aligned, human_aligned = map_orthologs(mouse_df, human_df, ortholog_df)
     mouse_scaled = clean_and_scale(mouse_aligned)
