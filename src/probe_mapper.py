@@ -45,7 +45,10 @@ def map_probes_to_genes(expr_file: str, annotation_file: str) -> pd.DataFrame:
         st.write("🧬 Annotation Columns:", list(ann_df.columns))
 
         probe_col = st.selectbox("Select probe ID column:", ann_df.columns, key="probe")
+        st.write("🧪 Sample probe values:", ann_df[probe_col].dropna().unique()[:5])
+
         gene_col = st.selectbox("Select gene symbol column:", ann_df.columns, key="gene")
+        st.write("🧬 Sample gene symbol values:", ann_df[gene_col].dropna().unique()[:5])
 
     st.info(f"🧬 Using columns: {probe_col} → {gene_col}")
 
