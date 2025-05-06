@@ -41,7 +41,11 @@ def map_probes_to_genes(expr_file: str, annotation_file: str) -> pd.DataFrame:
     gene_col = next((col for col in possible_gene_cols if col in ann_df.columns), None)
 
     if not probe_col or not gene_col:
-        raise ValueError("❌ Required columns not found in annotation file")
+        st.warning("⚠️ Auto-detection failed. Please select columns manually:")
+        st.write("🧬 Annotation Columns:", list(ann_df.columns))
+
+        probe_col = st.selectbox("Select probe ID column:", ann_df.columns, key="probe")
+        gene_col = st.selectbox("Select gene symbol column:", ann_df.columns, key="gene")
 
     st.info(f"🧬 Using columns: {probe_col} → {gene_col}")
 
