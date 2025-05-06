@@ -9,3 +9,4 @@ mygene
 GEOparse
 requests
 xgboost
+biopython
