@@ -1,33 +1,48 @@
-# src/ortholog_mapper.py
-
 import pandas as pd
 
-def map_orthologs(mouse_df, human_df, ortholog_df):
-    shared_mouse = list(set(mouse_df.columns).intersection(set(ortholog_df["mouse_symbol"])))
-    shared_human = list(set(human_df.columns).intersection(set(ortholog_df["human_symbol"])))
+def map_human_to_model_genes(
+    human_genes,
+    animal_df,
+    ortholog_path='data/mouse_to_human_orthologs.csv',
+    model_species='Mouse'
+):
+    """
+    Maps human gene symbols to orthologs in a given model species using a wide-format ortholog table.
 
-    if not shared_mouse or not shared_human:
-        raise ValueError("❌ No shared orthologs found between input data and mapping file.")
+    Args:
+        human_genes (list): Gene symbols from human dataset (columns of human X).
+        animal_df (pd.DataFrame): Animal model dataset with gene symbol columns.
+        ortholog_path (str): Path to the ortholog table CSV file.
+        model_species (str): Species to map to (e.g., 'Mouse', 'Rat', 'Zebrafish').
 
-    # Filter orthologs to shared ones only
-    valid_orthologs = ortholog_df[
-        ortholog_df["mouse_symbol"].isin(shared_mouse) &
-        ortholog_df["human_symbol"].isin(shared_human)
-    ].drop_duplicates(subset="human_symbol")
+    Returns:
+        shared_genes (list): List of shared ortholog symbols found in animal dataset.
+        X_animal_aligned (pd.DataFrame): Aligned animal dataframe subset with shared genes.
+    """
+    species_col = f"{model_species}_Symbol"
 
-    # Ensure the genes exist in both datasets
-    mouse_genes = valid_orthologs["mouse_symbol"].unique()
-    human_genes = valid_orthologs["human_symbol"].unique()
+    try:
+        ortho_df = pd.read_csv(ortholog_path)
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Ortholog file not found at: {ortholog_path}")
+    
+    if 'Human_Symbol' not in ortho_df.columns or species_col not in ortho_df.columns:
+        raise ValueError(f"Expected columns 'Human_Symbol' and '{species_col}' in ortholog file.")
 
-    mouse_aligned = mouse_df[mouse_genes]
-    human_aligned = human_df[human_genes]
+    # Drop rows missing data
+    ortho_df = ortho_df.dropna(subset=['Human_Symbol', species_col])
 
-    # Reindex to match order
-    valid_orthologs = valid_orthologs.set_index("human_symbol")
-    valid_orthologs = valid_orthologs.loc[human_aligned.columns]
-    mouse_aligned = mouse_aligned[valid_orthologs["mouse_symbol"].values]
+    # Build mapping dictionary
+    human_to_model = dict(zip(ortho_df['Human_Symbol'], ortho_df[species_col]))
 
-    human_aligned.columns = valid_orthologs.index
-    mouse_aligned.columns = valid_orthologs.index
+    # Map human genes to model genes
+    mapped_genes = [human_to_model.get(g) for g in human_genes if g in human_to_model]
+    shared_genes = [g for g in mapped_genes if g in animal_df.columns]
 
-    return mouse_aligned, human_aligned
+    if not shared_genes:
+        raise ValueError(f"No shared ortholog genes found for species '{model_species}'.")
+
+    # Subset and align animal data
+    X_animal = animal_df[shared_genes].copy()
+
+    return shared_genes, X_animal
