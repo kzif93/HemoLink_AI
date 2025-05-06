@@ -13,7 +13,7 @@ def search_geo_by_keyword(query, retmax=20):
     base_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
     params = {
         "db": "gds",
-        "term": f"{query} AND gse[Entry Type]",
+        "term": f"{query} AND gse[Entry Type] AND txid9606[Organism]",
         "retmode": "xml",
         "retmax": retmax
     }
