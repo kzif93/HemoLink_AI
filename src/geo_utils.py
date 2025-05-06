@@ -4,7 +4,7 @@ import pandas as pd
 import os
 
 # Required by NCBI for usage tracking — replace with your actual email
-Entrez.email = "your.email@example.com"
+Entrez.email = "kzif93@gmail.com"
 
 
 def search_geo_datasets(query, max_results=10):
