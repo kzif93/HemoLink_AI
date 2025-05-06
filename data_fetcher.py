@@ -8,7 +8,15 @@ import GEOparse
 import streamlit as st
 from xml.etree import ElementTree as ET
 
-# GEO keyword-based search using Entrez API
+# Trusted stroke-related human GEO datasets
+TRUSTED_GEO = {
+    "GSE16561": "Peripheral blood transcriptome in early ischemic stroke",
+    "GSE22255": "PBMCs in ischemic stroke vs control",
+    "GSE58294": "Temporal profile from 3h–24h post-stroke",
+    "GSE37587": "Cardioembolic vs large vessel stroke",
+    "GSE162955": "scRNA-seq of blood leukocytes post-stroke"
+}
+
 def search_geo_by_keyword(query, retmax=20):
     base_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
     params = {
@@ -108,6 +116,12 @@ def dataset_search_ui():
         for i, (gse_id, title) in enumerate(geo_hits):
             if st.sidebar.button(f"⬇️ {gse_id}", key=f"geo_download_{i}"):
                 st.session_state["gse_to_download"] = gse_id
+
+    # Always show trusted GSE library
+    st.sidebar.markdown("### ⭐ Trusted Human Stroke Datasets")
+    for gse_id, desc in TRUSTED_GEO.items():
+        if st.sidebar.button(f"⬇️ {gse_id} — {desc}", key=f"trusted_{gse_id}"):
+            fetch_geo_series(gse_id)
 
     if "gse_to_download" in st.session_state:
         gse_id = st.session_state.pop("gse_to_download")
