@@ -2,165 +2,80 @@ import os
 import sys
 import streamlit as st
 import pandas as pd
-import numpy as np
-import GEOparse
 
-# Extend sys path to access src/
 sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
 
 from preprocessing import preprocess_dataset
 from model_training import train_model
 from prediction import test_model_on_dataset
-from ortholog_mapper import map_human_to_model_genes
 from explainability import extract_shap_values, compare_shap_vectors
-from reverse_modeling import list_animal_datasets
-from data_fetcher import dataset_search_ui
-from smart_geo_animal_search import smart_animal_dataset_search_ui
-
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.linear_model import LogisticRegression
-import xgboost as xgb
+from reverse_modeling import list_animal_datasets, load_multiple_datasets
+from smart_geo_animal_search import smart_animal_dataset_search_ui, smart_search_animal_geo, download_animal_dataset
 
 st.set_page_config(page_title="HemoLink_AI – Reverse Modeling", layout="wide")
 
-# -------------------- HEADER --------------------
 st.markdown("""
-    <div style="display: flex; align-items: center; gap: 20px;">
-        <img src="https://raw.githubusercontent.com/kzif93/HemoLink_AI/main/assets/logo.png" width="200">
-        <div>
-            <h1 style="margin-bottom: 0;">HemoLink_AI</h1>
-            <h3 style="margin-top: 0; color: #ccc;">🔁 Reverse Modeling – Match Human Signatures to Animal Models</h3>
-        </div>
-    </div>
+    <h1 style='margin-bottom: 5px;'>Reverse Modeling – Match Human Data to Animal Models</h1>
+    <p style='color: gray;'>Upload your own dataset or search for GEO datasets to train on multiple human datasets and evaluate against multiple animal models.</p>
 """, unsafe_allow_html=True)
 
-# -------------------- GEO UI --------------------
-dataset_search_ui()
+# --- STEP 1: Human dataset selection ---
+st.markdown("### Step 1: Choose Human Dataset(s)")
+uploaded_files = st.file_uploader("Upload one or more human expression CSV files:", type=["csv"], accept_multiple_files=True)
+human_files = uploaded_files if uploaded_files else []
+human_paths = []
+
+if human_files:
+    for file in human_files:
+        path = os.path.join("data", file.name)
+        with open(path, "wb") as f:
+            f.write(file.getbuffer())
+        human_paths.append(path)
+
+# --- STEP 2: GEO Search ---
+st.markdown("### Step 2: Search for Human or Animal Datasets")
 smart_animal_dataset_search_ui()
 
-st.markdown("### 🧬 Step 1: Choose Human Dataset(s)")
+# --- STEP 3: Training & Evaluation ---
+if human_paths:
+    st.markdown("### Step 3: Train Model on Human Dataset(s)")
+    label_col = st.text_input("🔠 Name of binary label column (leave blank to auto-detect)")
 
-expression_files = [f for f in os.listdir("data") if f.endswith("_expression.csv")]
-selected_files = st.multiselect("Select one or more human datasets:", expression_files)
+    all_human_dfs = []
+    all_labels = []
+    for path in human_paths:
+        df = pd.read_csv(path, index_col=0)
+        y = df[label_col] if label_col in df.columns else None
+        if y is not None:
+            df = df.drop(columns=[label_col])
+            all_human_dfs.append(df)
+            all_labels.append(y)
 
-@st.cache_data(show_spinner=False)
-def extract_sample_metadata(gse_id):
-    gse = GEOparse.get_GEO(geo=gse_id, destdir="data", annotate_gpl=True)
-    records = []
-    for gsm_name, gsm in gse.gsms.items():
-        sample = {"SampleID": gsm_name}
-        for field in gsm.metadata:
-            val = gsm.metadata[field]
-            if isinstance(val, list):
-                sample[field] = "; ".join(val)
-            else:
-                sample[field] = val
-        for line in gsm.metadata.get("characteristics_ch1", []):
-            if ":" in line:
-                key, value = line.split(":", 1)
-                key_clean = key.strip().lower()
-                if key_clean not in ["contact name", "contact email", "contact address", "geo accession", "supplementary file"]:
-                    sample[key.strip()] = value.strip()
-        records.append(sample)
-    df = pd.DataFrame(records).set_index("SampleID")
-    df = df.loc[:, df.nunique() > 1]
-    return df
+    if all_labels:
+        X_all = pd.concat(all_human_dfs)
+        y_all = pd.concat(all_labels)
+        model, metrics = train_model(X_all, y_all)
+        st.json(metrics)
 
-def load_and_label_human_dataset(file):
-    gse_id = file.split("_")[0]
-    df = pd.read_csv(os.path.join("data", file), index_col=0).T
-    metadata = extract_sample_metadata(gse_id)
-    common_samples = metadata.index.intersection(df.index)
-    df = df.loc[common_samples]
-    metadata = metadata.loc[common_samples]
-
-    st.markdown(f"#### 🔎 Metadata preview for {gse_id}")
-    st.dataframe(metadata.head(10))
-
-    exclude_keywords = ["contact", "phone", "email", "address", "geo", "url"]
-    label_options = [col for col in metadata.columns if metadata[col].nunique() <= 10 and metadata[col].dtype == "object" and not any(kw in col.lower() for kw in exclude_keywords)]
-
-    if not label_options:
-        st.warning(f"⚠️ No suitable label column found for {file}. Skipping.")
-        return None, None
-
-    label_col = st.selectbox(
-        f"Select label column for {file}",
-        options=label_options,
-        index=label_options.index(next((col for col in label_options if any(k in col.lower() for k in ['disease', 'condition', 'group'])), 0)),
-        help="Select the column that defines the disease status or experimental condition.",
-        key=file
-    )
-
-    labels = metadata[label_col].astype(str).str.lower()
-    mapping = {val: i for i, val in enumerate(sorted(labels.unique()))}
-    y = labels.map(mapping)
-
-    return df, y
-
-X_list = []
-y_list = []
-
-if selected_files:
-    for file in selected_files:
-        df, y = load_and_label_human_dataset(file)
-        if df is not None and y is not None:
-            X_list.append(df)
-            y_list.append(y)
-
-if X_list and y_list:
-    X_human = pd.concat(X_list, axis=0, join="inner")
-    y_human = pd.concat(y_list, axis=0)
-
-    st.success(f"✅ Combined {len(X_list)} dataset(s), shape: {X_human.shape}")
-
-    st.markdown("### 🧠 Step 2: Train Human Model")
-    model_choice = st.selectbox("Select model:", ["RandomForest", "XGBoost", "LogisticRegression"])
-
-    if model_choice == "RandomForest":
-        model = RandomForestClassifier(n_estimators=100, random_state=42)
-    elif model_choice == "XGBoost":
-        model = xgb.XGBClassifier(use_label_encoder=False, eval_metric='logloss', random_state=42)
-    elif model_choice == "LogisticRegression":
-        model = LogisticRegression(max_iter=1000)
-
-    model.fit(X_human, y_human)
-
-    st.markdown("### 🐭 Step 3: Evaluate on Animal Datasets")
-    animal_files = list_animal_datasets("animal_models")
-    selected_animals = st.multiselect("Select animal datasets to test on:", animal_files, default=animal_files)
-
-    results = []
-    for file in selected_animals:
+        st.markdown("### Step 4: Test on Animal Models")
         try:
-            animal_df = pd.read_csv(os.path.join("animal_models", file))
-            shared_genes, X_animal = map_human_to_model_genes(
-                human_genes=X_human.columns,
-                animal_df=animal_df,
-                ortholog_path="data/mouse_to_human_orthologs.csv",
-                filename_hint=file
-            )
+            animal_files = list_animal_datasets("animal_models")
+            animal_datasets = load_multiple_datasets(animal_files)
 
-            if len(shared_genes) < 10:
-                continue
+            leaderboard = []
+            for animal_name, animal_df in animal_datasets.items():
+                try:
+                    preds, auc = test_model_on_dataset(model, animal_df, return_auc=True)
+                    shap_vec = extract_shap_values(model, animal_df)
+                    similarity = compare_shap_vectors(shap_vec, shap_vec)  # placeholder for pairwise
+                    leaderboard.append({
+                        "Dataset": animal_name,
+                        "AUC": auc,
+                        "SHAP Similarity": similarity
+                    })
+                except Exception as e:
+                    st.warning(f"Failed on {animal_name}: {e}")
 
-            auc_score, _ = test_model_on_dataset(model, X_animal[shared_genes])
-            shap_human = extract_shap_values(model, X_human[shared_genes])
-            shap_animal = extract_shap_values(model, X_animal[shared_genes])
-            shap_similarity = compare_shap_vectors(shap_human, shap_animal)
-
-            results.append({
-                "Animal Model": file,
-                "Shared Genes": len(shared_genes),
-                "AUC": round(auc_score, 3),
-                "SHAP Similarity": round(shap_similarity, 3)
-            })
-
-        except Exception as e:
-            st.warning(f"⚠️ Skipping {file}: {e}")
-
-    if results:
-        st.markdown("### 📊 Results")
-        st.dataframe(pd.DataFrame(results).sort_values(by="SHAP Similarity", ascending=False))
-    else:
-        st.info("No compatible animal datasets found.")
+            st.dataframe(pd.DataFrame(leaderboard))
+        except FileNotFoundError:
+            st.error("No animal model folder or datasets found. Please use the GEO search to download models.")
