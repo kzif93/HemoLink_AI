@@ -26,8 +26,9 @@ def pubmed_to_geo(pmids):
     return list(geo_ids)
 
 @st.cache_data(show_spinner=False)
-def smart_search_animal_geo(keyword="stroke", organism="Mus musculus", max_results=50):
-    query = f"({' OR '.join(KEYWORDS)}) AND {organism}[Organism] AND gse[Entry Type]"
+def smart_search_animal_geo(keyword="stroke", organism="", max_results=50):
+    org_clause = f" AND {organism}[Organism]" if organism else ""
+    query = f"({' OR '.join(KEYWORDS)}){org_clause} AND gse[Entry Type]"
     handle = Entrez.esearch(db="gds", term=query, retmax=max_results)
     record = Entrez.read(handle)
     handle.close()
@@ -75,13 +76,13 @@ def download_animal_dataset(gse_id):
 def smart_animal_dataset_search_ui():
     st.markdown("### 🧠 Smart Animal GEO Dataset Discovery")
     keyword = st.text_input("Keyword(s) (e.g., stroke, MCAO, ischemia):", value="stroke")
-    organism = st.selectbox("Select organism:", ["Mus musculus", "Rattus norvegicus", "Danio rerio"])
+    organism = st.text_input("Species (e.g., Mus musculus, Rattus norvegicus — leave blank to search all species)", value="")
     pmid_hint = st.text_input("Optional PubMed ID (e.g., 37625628 or PMC10369109)")
 
     if st.button("🔍 Run Smart Search"):
         geo_ids_from_pub = []
         if pmid_hint.strip():
-            pmids = [pmid_hint.strip().replace("PMC", "")]  # Strip PMC if present
+            pmids = [pmid_hint.strip().replace("PMC", "")]
             geo_ids_from_pub = pubmed_to_geo(pmids)
 
         results_df = smart_search_animal_geo(keyword=keyword, organism=organism)
