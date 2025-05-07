@@ -4,7 +4,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import GEOparse
-import matplotlib.pyplot as plt
 
 # Extend sys path to access src/
 sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
@@ -82,14 +81,6 @@ def load_and_label_human_dataset(file):
 
     label_col = st.selectbox(f"Select label column for {file}", label_options, key=file)
     labels = metadata[label_col].astype(str).str.lower()
-
-    # Show distribution chart
-    st.markdown(f"Label distribution for `{label_col}`:")
-    label_counts = labels.value_counts()
-    fig, ax = plt.subplots()
-    label_counts.plot(kind="bar", ax=ax, color="skyblue")
-    ax.set_ylabel("Sample count")
-    st.pyplot(fig)
 
     # Simple binary mapping heuristic
     mapping = {val: i for i, val in enumerate(sorted(labels.unique()))}
