@@ -1,141 +1,127 @@
-import streamlit as st
-import pandas as pd
 import os
 import sys
+import streamlit as st
+import pandas as pd
+import numpy as np
 
-# Extend sys.path to access src/ folder
-sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
+# Add src path
+sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
 
-# Imports from src
+# --- Import HemoLink modules ---
+from preprocessing import preprocess_dataset
 from model_training import train_model
 from prediction import test_model_on_dataset
 from ortholog_mapper import map_human_to_model_genes
 from explainability import extract_shap_values, compare_shap_vectors
 from reverse_modeling import list_animal_datasets
-from preprocessing import preprocess_dataset
-from geo_utils import search_geo_datasets, fetch_geo_platform_matrix
+from data_fetcher import dataset_search_ui
 
-# --- App Config ---
-st.set_page_config(
-    page_title="HemoLink_AI – Reverse Modeling",
-    layout="wide",
-    page_icon="🧬",
-)
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+import xgboost as xgb
 
-st.title("🧬 Reverse Modeling – Match Human Data to Animal Models")
+# --- Page Config ---
+st.set_page_config(page_title="HemoLink_AI – Reverse Modeling", layout="wide")
 
+# -------------------- HEADER --------------------
 st.markdown("""
-Upload your own dataset or search for **GEO datasets** to train on **multiple human datasets** and evaluate against **multiple animal models**.
-""")
+    <div style="display: flex; align-items: center; gap: 20px;">
+        <img src="https://raw.githubusercontent.com/kzif93/HemoLink_AI/main/assets/logo.png" width="200">
+        <div>
+            <h1 style="margin-bottom: 0;">HemoLink_AI</h1>
+            <h3 style="margin-top: 0; color: #ccc;">🔁 Reverse Modeling – Match Human Signatures to Animal Models</h3>
+        </div>
+    </div>
+""", unsafe_allow_html=True)
 
-# --- Sidebar: GEO Search & Selection ---
-with st.sidebar:
-    st.markdown("🔍 **Search GEO for Human Datasets**")
-    disease_query = st.text_input("Disease keyword (e.g., stroke, thrombosis)")
-    selected_geo_ids = []
+# -------------------- GEO UI --------------------
+dataset_search_ui()
 
-    if disease_query:
-        with st.spinner("Searching GEO..."):
-            geo_ids = search_geo_datasets(disease_query, max_results=10)
-        if geo_ids:
-            selected_geo_ids = st.multiselect("Select GEO dataset(s)", geo_ids)
-            if st.button("Download selected datasets"):
-                st.session_state["geo_datasets"] = []
-                for geo_id in selected_geo_ids:
-                    try:
-                        df = fetch_geo_platform_matrix(geo_id)
-                        df["source"] = geo_id  # for tracking
-                        st.session_state["geo_datasets"].append(df)
-                        st.success(f"✓ Loaded {geo_id}")
-                    except Exception as e:
-                        st.warning(f"⚠️ Failed: {geo_id} – {e}")
-        else:
-            st.info("No datasets found.")
+st.markdown("### 🧬 Step 1: Upload Human Labels or Select a Column")
 
-# --- File Upload (optional) ---
-uploaded_file = st.file_uploader("📄 Or upload a single human dataset CSV", type=["csv"])
+uploaded_labels = st.file_uploader("📂 Upload CSV with sample labels", type=["csv"])
 label_col = st.text_input("🔠 Name of binary label column (e.g. 'disease')")
 
-# --- Combine Human Datasets ---
-combined_df = None
+# -------------------- Load Expression --------------------
+st.info("📂 Looking for latest downloaded GEO expression file...")
 
-if "geo_datasets" in st.session_state and st.session_state["geo_datasets"]:
-    combined_df = pd.concat(st.session_state["geo_datasets"], axis=0, join="inner")
-    st.success(f"✅ Combined {len(st.session_state['geo_datasets'])} GEO datasets")
-elif uploaded_file:
-    combined_df = pd.read_csv(uploaded_file)
+try:
+    # Get latest human expression file
+    files = [f for f in os.listdir("data") if f.endswith("_expression.csv")]
+    files.sort(reverse=True)
+    latest_file = os.path.join("data", files[0])
+    human_df = pd.read_csv(latest_file, index_col=0)
 
-# --- Run Modeling Pipeline ---
-if combined_df is not None and label_col:
-    try:
-        X_human, y_human = preprocess_dataset(combined_df, label_col)
+    st.success(f"✅ Using human dataset: {os.path.basename(latest_file)}")
 
-        # --- Select Model ---
-        from sklearn.ensemble import RandomForestClassifier
-        from sklearn.linear_model import LogisticRegression
-        import xgboost as xgb
-
-        model_choice = st.selectbox("🧠 Select a model", ["RandomForest", "XGBoost", "LogisticRegression"])
-
-        if model_choice == "RandomForest":
-            model = RandomForestClassifier(n_estimators=100, random_state=42)
-        elif model_choice == "XGBoost":
-            model = xgb.XGBClassifier(use_label_encoder=False, eval_metric='logloss', random_state=42)
-        elif model_choice == "LogisticRegression":
-            model = LogisticRegression(max_iter=1000)
-        else:
-            st.error("Invalid model selected.")
+    # Load labels if provided
+    if uploaded_labels is not None:
+        labels_df = pd.read_csv(uploaded_labels)
+        if label_col not in labels_df.columns:
+            st.error(f"Column '{label_col}' not found in uploaded file.")
             st.stop()
+        y_human = labels_df[label_col]
+    elif label_col in human_df.columns:
+        y_human = human_df[label_col]
+        human_df = human_df.drop(columns=[label_col])
+    else:
+        st.warning("⚠️ Please provide a valid label column.")
+        st.stop()
 
-        model.fit(X_human, y_human)
+    # Preprocess
+    X_human, y_human = preprocess_dataset(human_df, label_col=None)
 
-        # --- Animal Model Evaluation ---
-        model_folder = "animal_models"
-        animal_files = list_animal_datasets(model_folder)
+    # Model choice
+    st.markdown("### 🧠 Step 2: Train Human Model")
+    model_choice = st.selectbox("Select a model", ["RandomForest", "XGBoost", "LogisticRegression"])
 
-        st.subheader("📊 Evaluation Results")
-        results = []
+    if model_choice == "RandomForest":
+        model = RandomForestClassifier(n_estimators=100, random_state=42)
+    elif model_choice == "XGBoost":
+        model = xgb.XGBClassifier(use_label_encoder=False, eval_metric='logloss', random_state=42)
+    elif model_choice == "LogisticRegression":
+        model = LogisticRegression(max_iter=1000)
 
-        for file in animal_files:
-            try:
-                animal_path = os.path.join(model_folder, file)
-                animal_df = pd.read_csv(animal_path)
+    model.fit(X_human, y_human)
 
-                # Detect species and align orthologs
-                shared_genes, X_animal = map_human_to_model_genes(
-                    human_genes=X_human.columns,
-                    animal_df=animal_df,
-                    ortholog_path='data/mouse_to_human_orthologs.csv',
-                    filename_hint=file
-                )
+    # Animal model evaluation
+    st.markdown("### 🧪 Step 3: Evaluate on Animal Datasets")
+    results = []
+    for file in list_animal_datasets("animal_models"):
+        try:
+            animal_df = pd.read_csv(os.path.join("animal_models", file))
+            shared_genes, X_animal = map_human_to_model_genes(
+                human_genes=X_human.columns,
+                animal_df=animal_df,
+                ortholog_path="data/mouse_to_human_orthologs.csv",
+                filename_hint=file
+            )
 
-                if len(shared_genes) < 10:
-                    st.warning(f"⚠️ Skipping {file}: Only {len(shared_genes)} shared genes.")
-                    continue
-
-                # Evaluate
-                auc_score, y_pred = test_model_on_dataset(model, X_animal[shared_genes])
-                shap_human = extract_shap_values(model, X_human[shared_genes])
-                shap_animal = extract_shap_values(model, X_animal[shared_genes])
-                shap_similarity = compare_shap_vectors(shap_human, shap_animal)
-
-                results.append({
-                    "Animal Model File": file,
-                    "Detected Species": file.split("_")[-1].replace(".csv", ""),
-                    "Shared Genes": len(shared_genes),
-                    "AUC": round(auc_score, 3),
-                    "SHAP Similarity": round(shap_similarity, 3),
-                })
-
-            except Exception as e:
-                st.warning(f"⚠️ Skipping {file}: {e}")
+            if len(shared_genes) < 10:
+                st.warning(f"⚠️ Skipping {file}: too few shared genes.")
                 continue
 
-        if results:
-            result_df = pd.DataFrame(results).sort_values(by="SHAP Similarity", ascending=False)
-            st.dataframe(result_df)
-        else:
-            st.info("No valid animal model results.")
+            auc, y_pred = test_model_on_dataset(model, X_animal[shared_genes])
+            shap_human = extract_shap_values(model, X_human[shared_genes])
+            shap_animal = extract_shap_values(model, X_animal[shared_genes])
+            shap_similarity = compare_shap_vectors(shap_human, shap_animal)
 
-    except Exception as e:
-        st.error(f"❌ Pipeline error: {e}")
+            results.append({
+                "Animal Model File": file,
+                "Shared Genes": len(shared_genes),
+                "AUC": round(auc, 3),
+                "SHAP Similarity": round(shap_similarity, 3),
+            })
+        except Exception as e:
+            st.warning(f"⚠️ Error processing {file}: {e}")
+            continue
+
+    if results:
+        st.markdown("### 📊 Model Transferability Leaderboard")
+        st.dataframe(pd.DataFrame(results).sort_values(by="SHAP Similarity", ascending=False))
+    else:
+        st.info("No compatible animal datasets found.")
+
+except Exception as e:
+    st.error("❌ Something went wrong during data processing.")
+    st.exception(e)
