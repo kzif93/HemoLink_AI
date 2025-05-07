@@ -41,44 +41,36 @@ st.markdown("### 🧬 Step 1: Choose Human Dataset(s)")
 expression_files = [f for f in os.listdir("data") if f.endswith("_expression.csv")]
 selected_files = st.multiselect("Select one or more human datasets:", expression_files)
 
-label_col = st.text_input("🔠 Name of binary label column (leave empty to auto-detect)")
-uploaded_labels = st.file_uploader("📂 Optionally upload a label file (CSV)", type=["csv"])
+# Helper function to load and label datasets
+def load_and_label_human_dataset(file):
+    df = pd.read_csv(os.path.join("data", file), index_col=0).T  # samples as rows
+    potential_labels = [col for col in df.columns if col.lower() in ["disease", "condition", "status", "phenotype"] or df[col].nunique() <= 5]
+
+    label_col = None
+    y = None
+    if potential_labels:
+        label_col = st.selectbox(f"Select label column for {file}", potential_labels, key=file)
+        y = df[label_col].replace({"control": 0, "healthy": 0, "case": 1, "stroke": 1}).astype(int)
+        df = df.drop(columns=[label_col])
+    else:
+        st.warning(f"⚠️ No clear label column found in {file}. Skipping.")
+    return df, y
+
+X_list = []
+y_list = []
 
 if selected_files:
-    dfs = []
     for file in selected_files:
-        df = pd.read_csv(os.path.join("data", file), index_col=0)
-        df["source"] = file
-        dfs.append(df)
+        df, y = load_and_label_human_dataset(file)
+        if df is not None and y is not None:
+            X_list.append(df)
+            y_list.append(y)
 
-    combined_df = pd.concat(dfs, axis=0, join="inner")
-    st.success(f"✅ Loaded {len(dfs)} dataset(s), shape: {combined_df.shape}")
+if X_list and y_list:
+    X_human = pd.concat(X_list, axis=0, join="inner")
+    y_human = pd.concat(y_list, axis=0)
 
-    # Load or infer labels
-    if uploaded_labels is not None:
-        labels_df = pd.read_csv(uploaded_labels, index_col=0)
-        if label_col in labels_df.columns:
-            y_human = labels_df[label_col]
-        else:
-            st.error(f"Column '{label_col}' not found in uploaded label file.")
-            st.stop()
-    else:
-        # Try auto-detect
-        possible_labels = [col for col in combined_df.columns if col.lower() in ["disease", "condition", "status"]]
-        if label_col:
-            y_human = combined_df[label_col]
-            combined_df = combined_df.drop(columns=[label_col])
-        elif possible_labels:
-            label_col = possible_labels[0]
-            y_human = combined_df[label_col]
-            combined_df = combined_df.drop(columns=[label_col])
-            st.success(f"✅ Auto-detected label column: {label_col}")
-        else:
-            st.error("❌ No label column provided or found.")
-            st.stop()
-
-    # Preprocess
-    X_human, y_human = preprocess_dataset(combined_df, label_col=None)
+    st.success(f"✅ Combined {len(X_list)} dataset(s), shape: {X_human.shape}")
 
     # ------------------ MODEL ------------------
     st.markdown("### 🧠 Step 2: Train Human Model")
