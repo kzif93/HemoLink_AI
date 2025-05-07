@@ -15,7 +15,7 @@ from ortholog_mapper import map_human_to_model_genes
 from explainability import extract_shap_values, compare_shap_vectors
 from reverse_modeling import list_animal_datasets
 from data_fetcher import dataset_search_ui
-from geo_animal_utils import animal_dataset_search_ui
+from smart_geo_animal_search import smart_animal_dataset_search_ui
 
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
@@ -36,7 +36,7 @@ st.markdown("""
 
 # -------------------- GEO UI --------------------
 dataset_search_ui()
-animal_dataset_search_ui()
+smart_animal_dataset_search_ui()
 
 st.markdown("### 🧬 Step 1: Choose Human Dataset(s)")
 
@@ -164,4 +164,3 @@ if X_list and y_list:
         st.dataframe(pd.DataFrame(results).sort_values(by="SHAP Similarity", ascending=False))
     else:
         st.info("No compatible animal datasets found.")
-
