@@ -3,6 +3,8 @@ import sys
 import streamlit as st
 import pandas as pd
 import numpy as np
+import GEOparse
+import matplotlib.pyplot as plt
 
 # Extend sys path to access src/
 sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
@@ -41,19 +43,58 @@ st.markdown("### 🧬 Step 1: Choose Human Dataset(s)")
 expression_files = [f for f in os.listdir("data") if f.endswith("_expression.csv")]
 selected_files = st.multiselect("Select one or more human datasets:", expression_files)
 
+# Helper function to extract metadata from GEO
+@st.cache_data(show_spinner=False)
+def extract_sample_metadata(gse_id):
+    gse = GEOparse.get_GEO(geo=gse_id, destdir="data", annotate_gpl=True)
+    records = []
+    for gsm_name, gsm in gse.gsms.items():
+        sample = {"SampleID": gsm_name}
+        for field in gsm.metadata:
+            val = gsm.metadata[field]
+            if isinstance(val, list):
+                sample[field] = "; ".join(val)
+            else:
+                sample[field] = val
+        for line in gsm.metadata.get("characteristics_ch1", []):
+            if ":" in line:
+                key, value = line.split(":", 1)
+                sample[key.strip()] = value.strip()
+        records.append(sample)
+    return pd.DataFrame(records).set_index("SampleID")
+
 # Helper function to load and label datasets
 def load_and_label_human_dataset(file):
+    gse_id = file.split("_")[0]
     df = pd.read_csv(os.path.join("data", file), index_col=0).T  # samples as rows
-    potential_labels = [col for col in df.columns if col.lower() in ["disease", "condition", "status", "phenotype"] or df[col].nunique() <= 5]
+    metadata = extract_sample_metadata(gse_id)
+    common_samples = metadata.index.intersection(df.index)
+    df = df.loc[common_samples]
+    metadata = metadata.loc[common_samples]
 
-    label_col = None
-    y = None
-    if potential_labels:
-        label_col = st.selectbox(f"Select label column for {file}", potential_labels, key=file)
-        y = df[label_col].replace({"control": 0, "healthy": 0, "case": 1, "stroke": 1}).astype(int)
-        df = df.drop(columns=[label_col])
-    else:
-        st.warning(f"⚠️ No clear label column found in {file}. Skipping.")
+    st.markdown(f"#### 🔎 Metadata preview for {gse_id}")
+    st.dataframe(metadata.head(10))
+
+    label_options = [col for col in metadata.columns if metadata[col].nunique() <= 10 and metadata[col].dtype == "object"]
+    if not label_options:
+        st.warning(f"⚠️ No suitable label column found for {file}. Skipping.")
+        return None, None
+
+    label_col = st.selectbox(f"Select label column for {file}", label_options, key=file)
+    labels = metadata[label_col].astype(str).str.lower()
+
+    # Show distribution chart
+    st.markdown(f"Label distribution for `{label_col}`:")
+    label_counts = labels.value_counts()
+    fig, ax = plt.subplots()
+    label_counts.plot(kind="bar", ax=ax, color="skyblue")
+    ax.set_ylabel("Sample count")
+    st.pyplot(fig)
+
+    # Simple binary mapping heuristic
+    mapping = {val: i for i, val in enumerate(sorted(labels.unique()))}
+    y = labels.map(mapping)
+
     return df, y
 
 X_list = []
