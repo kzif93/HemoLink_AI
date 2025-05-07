@@ -15,6 +15,7 @@ from ortholog_mapper import map_human_to_model_genes
 from explainability import extract_shap_values, compare_shap_vectors
 from reverse_modeling import list_animal_datasets
 from data_fetcher import dataset_search_ui
+from geo_animal_utils import animal_dataset_search_ui
 
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
@@ -35,14 +36,13 @@ st.markdown("""
 
 # -------------------- GEO UI --------------------
 dataset_search_ui()
+animal_dataset_search_ui()
 
 st.markdown("### 🧬 Step 1: Choose Human Dataset(s)")
 
-# Find all downloaded GEO expression datasets
 expression_files = [f for f in os.listdir("data") if f.endswith("_expression.csv")]
 selected_files = st.multiselect("Select one or more human datasets:", expression_files)
 
-# Helper function to extract metadata from GEO
 @st.cache_data(show_spinner=False)
 def extract_sample_metadata(gse_id):
     gse = GEOparse.get_GEO(geo=gse_id, destdir="data", annotate_gpl=True)
@@ -63,13 +63,12 @@ def extract_sample_metadata(gse_id):
                     sample[key.strip()] = value.strip()
         records.append(sample)
     df = pd.DataFrame(records).set_index("SampleID")
-    df = df.loc[:, df.nunique() > 1]  # Drop constant columns
+    df = df.loc[:, df.nunique() > 1]
     return df
 
-# Helper function to load and label datasets
 def load_and_label_human_dataset(file):
     gse_id = file.split("_")[0]
-    df = pd.read_csv(os.path.join("data", file), index_col=0).T  # samples as rows
+    df = pd.read_csv(os.path.join("data", file), index_col=0).T
     metadata = extract_sample_metadata(gse_id)
     common_samples = metadata.index.intersection(df.index)
     df = df.loc[common_samples]
@@ -78,11 +77,8 @@ def load_and_label_human_dataset(file):
     st.markdown(f"#### 🔎 Metadata preview for {gse_id}")
     st.dataframe(metadata.head(10))
 
-    # Exclude known non-phenotypic fields
     exclude_keywords = ["contact", "phone", "email", "address", "geo", "url"]
-    label_options = [col for col in metadata.columns 
-                     if metadata[col].nunique() <= 10 and metadata[col].dtype == "object" 
-                     and not any(kw in col.lower() for kw in exclude_keywords)]
+    label_options = [col for col in metadata.columns if metadata[col].nunique() <= 10 and metadata[col].dtype == "object" and not any(kw in col.lower() for kw in exclude_keywords)]
 
     if not label_options:
         st.warning(f"⚠️ No suitable label column found for {file}. Skipping.")
@@ -95,9 +91,8 @@ def load_and_label_human_dataset(file):
         help="Select the column that defines the disease status or experimental condition.",
         key=file
     )
-    labels = metadata[label_col].astype(str).str.lower()
 
-    # Simple binary mapping heuristic
+    labels = metadata[label_col].astype(str).str.lower()
     mapping = {val: i for i, val in enumerate(sorted(labels.unique()))}
     y = labels.map(mapping)
 
@@ -119,7 +114,6 @@ if X_list and y_list:
 
     st.success(f"✅ Combined {len(X_list)} dataset(s), shape: {X_human.shape}")
 
-    # ------------------ MODEL ------------------
     st.markdown("### 🧠 Step 2: Train Human Model")
     model_choice = st.selectbox("Select model:", ["RandomForest", "XGBoost", "LogisticRegression"])
 
@@ -132,7 +126,6 @@ if X_list and y_list:
 
     model.fit(X_human, y_human)
 
-    # ------------------ EVALUATION ------------------
     st.markdown("### 🐭 Step 3: Evaluate on Animal Datasets")
     animal_files = list_animal_datasets("animal_models")
     selected_animals = st.multiselect("Select animal datasets to test on:", animal_files, default=animal_files)
@@ -171,3 +164,4 @@ if X_list and y_list:
         st.dataframe(pd.DataFrame(results).sort_values(by="SHAP Similarity", ascending=False))
     else:
         st.info("No compatible animal datasets found.")
+
