@@ -6,9 +6,23 @@ import streamlit as st
 
 Entrez.email = "your_email@example.com"  # Replace with your actual email
 
-KEYWORDS = ["stroke", "ischemia", "MCAO", "tMCAO", "photothrombosis", "middle cerebral artery"]
-TISSUE_HINTS = ["brain", "cortex", "hippocampus"]
-PREFERRED_PLATFORMS = ["RNA-Seq", "GPL21103", "GPL17021"]  # Extend as needed
+PREFERRED_PLATFORMS = ["RNA-Seq", "GPL21103", "GPL17021"]
+
+CURATED_GSES = {
+    "GSE233813": "⭐ Curated",
+    "GSE162072": "⭐ Curated",
+    "GSE137482": "⭐ Curated",
+    "GSE36010": "⭐ Curated",
+    "GSE78731": "⭐ Curated",
+    "GSE16561": "⭐ Curated",
+    "GSE22255": "⭐ Curated",
+    "GSE58294": "⭐ Curated",
+    "GSE37587": "⭐ Curated",
+    "GSE162955": "⭐ Curated"
+}
+
+def extract_keywords_from_query(query):
+    return [kw.strip().lower() for kw in query.replace(",", " ").split() if len(kw) > 2]
 
 @st.cache_data(show_spinner=False)
 def pubmed_to_geo(pmids):
@@ -28,42 +42,68 @@ def pubmed_to_geo(pmids):
 @st.cache_data(show_spinner=False)
 def smart_search_animal_geo(keyword="stroke", organism="", max_results=50):
     org_clause = f" AND {organism}[Organism]" if organism else ""
-    query = f"({' OR '.join(KEYWORDS)}){org_clause} AND gse[Entry Type]"
-    handle = Entrez.esearch(db="gds", term=query, retmax=max_results)
-    record = Entrez.read(handle)
-    handle.close()
-    gse_ids = record.get("IdList", [])
+    query = f"{keyword}{org_clause} AND gse[Entry Type]"
 
-    summaries = []
-    for gid in gse_ids:
-        summary_handle = Entrez.esummary(db="gds", id=gid)
-        summary = Entrez.read(summary_handle)
-        summary_handle.close()
-        if not summary:
+    all_ids = set()
+    for db in ["gds", "gse"]:
+        try:
+            handle = Entrez.esearch(db=db, term=query, retmax=max_results)
+            record = Entrez.read(handle)
+            handle.close()
+            ids = record.get("IdList", [])
+            all_ids.update(ids)
+        except Exception:
             continue
-        item = summary[0]
-        title = item.get("title", "")
-        desc = item.get("summary", "")
-        combined = f"{title} {desc}".lower()
 
-        score = 0
-        score += sum(kw in combined for kw in KEYWORDS) * 2
-        score += sum(tk in combined for tk in TISSUE_HINTS)
-        if any(pl.lower() in combined for pl in PREFERRED_PLATFORMS):
-            score += 2
+    gse_summaries = {}
+    user_keywords = extract_keywords_from_query(keyword)
 
-        summaries.append({
-            "GSE": item.get("Accession", "N/A"),
-            "Title": title,
-            "Description": desc,
-            "Samples": item.get("n_samples", 0),
-            "Platform": item.get("GPL", ""),
-            "Organism": item.get("taxon", ""),
-            "ReleaseDate": item.get("PDAT", ""),
-            "Score": score
-        })
+    for gid in all_ids:
+        try:
+            summary_handle = Entrez.esummary(db="gds", id=gid)
+            summary = Entrez.read(summary_handle)
+            summary_handle.close()
+            if summary:
+                item = summary[0]
+                gse_id = item.get("Accession", "")
+                title = item.get("title", "")
+                desc = item.get("summary", "")
+                combined = f"{title} {desc}".lower()
+                score = 0
+                score += sum(kw in combined for kw in user_keywords) * 2
+                if any(pl.lower() in combined for pl in PREFERRED_PLATFORMS):
+                    score += 2
+                if gse_id in CURATED_GSES:
+                    score += 10
+                gse_summaries[gse_id] = {
+                    "GSE": gse_id,
+                    "Title": title,
+                    "Description": desc,
+                    "Samples": item.get("n_samples", 0),
+                    "Platform": item.get("GPL", ""),
+                    "Organism": item.get("taxon", ""),
+                    "ReleaseDate": item.get("PDAT", ""),
+                    "Score": score,
+                    "Tag": CURATED_GSES.get(gse_id, "")
+                }
+        except Exception:
+            continue
 
-    return pd.DataFrame(summaries).sort_values("Score", ascending=False)
+    for gse_id, tag in CURATED_GSES.items():
+        if gse_id not in gse_summaries:
+            gse_summaries[gse_id] = {
+                "GSE": gse_id,
+                "Title": f"[Manual Insert] {gse_id}",
+                "Description": "Manually curated dataset.",
+                "Samples": "?",
+                "Platform": "?",
+                "Organism": "?",
+                "ReleaseDate": "?",
+                "Score": 15,
+                "Tag": tag
+            }
+
+    return pd.DataFrame(list(gse_summaries.values())).sort_values("Score", ascending=False)
 
 @st.cache_data(show_spinner=True)
 def download_animal_dataset(gse_id):
@@ -75,7 +115,7 @@ def download_animal_dataset(gse_id):
 
 def smart_animal_dataset_search_ui():
     st.markdown("### 🧠 Smart Animal GEO Dataset Discovery")
-    keyword = st.text_input("Keyword or PubMed/PMC ID (e.g., stroke, MCAO, PMC10369109):", value="stroke")
+    keyword = st.text_input("Keyword or PubMed/PMC ID (e.g., stroke, thrombosis, PMC10369109):", value="stroke")
     organism = st.text_input("Species (e.g., Mus musculus, Rattus norvegicus — leave blank to search all species)", value="")
 
     if st.button("🔍 Run Smart Search"):
@@ -94,7 +134,7 @@ def smart_animal_dataset_search_ui():
         if results_df.empty:
             st.warning("No GEO datasets found.")
         else:
-            st.dataframe(results_df[["GSE", "Title", "Platform", "Samples", "Organism", "Score"]])
+            st.dataframe(results_df[["GSE", "Title", "Platform", "Samples", "Organism", "Tag", "Score"]])
             selected = st.multiselect("Select dataset(s) to download:", results_df["GSE"].tolist())
             for gse_id in selected:
                 st.write(f"⬇️ Downloading {gse_id}...")
