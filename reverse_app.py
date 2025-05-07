@@ -58,9 +58,13 @@ def extract_sample_metadata(gse_id):
         for line in gsm.metadata.get("characteristics_ch1", []):
             if ":" in line:
                 key, value = line.split(":", 1)
-                sample[key.strip()] = value.strip()
+                key_clean = key.strip().lower()
+                if key_clean not in ["contact name", "contact email", "contact address", "geo accession", "supplementary file"]:
+                    sample[key.strip()] = value.strip()
         records.append(sample)
-    return pd.DataFrame(records).set_index("SampleID")
+    df = pd.DataFrame(records).set_index("SampleID")
+    df = df.loc[:, df.nunique() > 1]  # Drop constant columns
+    return df
 
 # Helper function to load and label datasets
 def load_and_label_human_dataset(file):
@@ -74,12 +78,23 @@ def load_and_label_human_dataset(file):
     st.markdown(f"#### 🔎 Metadata preview for {gse_id}")
     st.dataframe(metadata.head(10))
 
-    label_options = [col for col in metadata.columns if metadata[col].nunique() <= 10 and metadata[col].dtype == "object"]
+    # Exclude known non-phenotypic fields
+    exclude_keywords = ["contact", "phone", "email", "address", "geo", "url"]
+    label_options = [col for col in metadata.columns 
+                     if metadata[col].nunique() <= 10 and metadata[col].dtype == "object" 
+                     and not any(kw in col.lower() for kw in exclude_keywords)]
+
     if not label_options:
         st.warning(f"⚠️ No suitable label column found for {file}. Skipping.")
         return None, None
 
-    label_col = st.selectbox(f"Select label column for {file}", label_options, key=file)
+    label_col = st.selectbox(
+        f"Select label column for {file}",
+        options=label_options,
+        index=label_options.index(next((col for col in label_options if any(k in col.lower() for k in ['disease', 'condition', 'group'])), 0)),
+        help="Select the column that defines the disease status or experimental condition.",
+        key=file
+    )
     labels = metadata[label_col].astype(str).str.lower()
 
     # Simple binary mapping heuristic
