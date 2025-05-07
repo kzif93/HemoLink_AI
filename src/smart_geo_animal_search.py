@@ -8,7 +8,7 @@ Entrez.email = "your_email@example.com"  # Replace with your actual email
 
 KEYWORDS = ["stroke", "ischemia", "MCAO", "tMCAO", "photothrombosis", "middle cerebral artery"]
 TISSUE_HINTS = ["brain", "cortex", "hippocampus"]
-PREFERRED_PLATFORMS = ["RNA-Seq", "GPL21103", "GPL17021"]  # Add relevant GPLs or platform hints
+PREFERRED_PLATFORMS = ["RNA-Seq", "GPL21103", "GPL17021"]  # Extend as needed
 
 @st.cache_data(show_spinner=False)
 def pubmed_to_geo(pmids):
@@ -75,9 +75,11 @@ def download_animal_dataset(gse_id):
 
 def smart_animal_dataset_search_ui():
     st.markdown("### 🧠 Smart Animal GEO Dataset Discovery")
-    keyword = st.text_input("Keyword(s) (e.g., stroke, MCAO, ischemia):", value="stroke")
+    keyword = st.text_input("Keyword or PubMed/PMC ID (e.g., stroke, MCAO, PMC10369109):", value="stroke")
     organism = st.text_input("Species (e.g., Mus musculus, Rattus norvegicus — leave blank to search all species)", value="")
-    geo_ids_from_pub = []
+
+    if st.button("🔍 Run Smart Search"):
+        geo_ids_from_pub = []
         if any(tag in keyword.lower() for tag in ["pmc", "pmid"]):
             pmid_clean = keyword.lower().replace("pmc", "").replace("pmid", "").strip()
             if pmid_clean.isdigit():
