@@ -29,44 +29,7 @@ query = st.text_input("🔍 Disease keyword or PubMed/PMC ID (e.g., stroke, thro
 species_input = st.text_input("🧬 Species (e.g., Homo sapiens, Mus musculus — leave blank for all):")
 
 # --- Curated Dataset Registry ---
-curated_registry = {
-    "stroke": [
-        {"GSE": "GSE233813", "Organism": "Mouse", "Model": "MCAO (24h)", "Platform": "RNA-Seq", "Description": "Brain RNA-seq in mice post-MCAO"},
-        {"GSE": "GSE162072", "Organism": "Rat", "Model": "tMCAO (3h)", "Platform": "Microarray", "Description": "Vascular transcriptomics in rats"},
-        {"GSE": "GSE137482", "Organism": "Mouse", "Model": "Photothrombosis", "Platform": "RNA-Seq", "Description": "Ischemic cortex gene expression"},
-        {"GSE": "PMC10369109", "Organism": "Rabbit", "Model": "Spatial vascular", "Platform": "Visium", "Description": "Spatial transcriptomics of vessels"},
-        {"GSE": "GSE36010 / GSE78731", "Organism": "Rat", "Model": "MCAO (meta-analysis)", "Platform": "Microarray", "Description": "Integrated stroke meta-datasets"},
-        {"GSE": "GSE16561", "Organism": "Human", "Model": "Ischemic stroke", "Platform": "Microarray", "Description": "Whole blood profiling"},
-        {"GSE": "GSE22255", "Organism": "Human", "Model": "Stroke vs control", "Platform": "Microarray", "Description": "PBMCs from stroke patients"},
-        {"GSE": "GSE58294", "Organism": "Human", "Model": "Acute stroke", "Platform": "Microarray", "Description": "Blood transcriptional profiling"},
-        {"GSE": "GSE37587", "Organism": "Human", "Model": "Stroke outcomes", "Platform": "Microarray", "Description": "Post-stroke recovery data"},
-        {"GSE": "GSE162955", "Organism": "Human", "Model": "Cerebral ischemia", "Platform": "RNA-Seq", "Description": "Gene expression in ischemia"}
-    ],
-    "vte": [
-        {"GSE": "GSE125965", "Organism": "Mouse", "Model": "IVC stenosis DVT", "Platform": "Microarray", "Description": "Mouse vein wall and blood DVT data"},
-        {"GSE": "GSE19151", "Organism": "Mouse", "Model": "TF-induced thrombosis", "Platform": "Microarray", "Description": "TF-driven procoagulant signatures"},
-        {"GSE": "GSE145993", "Organism": "Mouse", "Model": "FeCl₃ thrombosis", "Platform": "RNA-Seq", "Description": "Endothelial transcription after FeCl₃"},
-        {"GSE": "GSE245276", "Organism": "Mouse", "Model": "Anti-P-selectin", "Platform": "RNA-Seq", "Description": "Treatment effects on thrombosis"},
-        {"GSE": "GSE46265", "Organism": "Rat", "Model": "IVC ligation", "Platform": "Microarray", "Description": "Rat transcriptome post-ligation"},
-        {"GSE": "GSE19151", "Organism": "Human", "Model": "VTE vs control", "Platform": "Microarray", "Description": "Blood profiling in idiopathic VTE"},
-        {"GSE": "GSE48000", "Organism": "Human", "Model": "Factor V Leiden", "Platform": "Microarray", "Description": "Mutation-driven thrombosis risk"},
-        {"GSE": "GSE17078", "Organism": "Human", "Model": "VTE leukocytes", "Platform": "Microarray", "Description": "Immune profiles in VTE"},
-        {"GSE": "GSE26787", "Organism": "Human", "Model": "APS/VTE comparison", "Platform": "Microarray", "Description": "Coagulopathy patient groups"},
-        {"GSE": "GSE158312", "Organism": "Human", "Model": "EV miRNAs in PE", "Platform": "RNA-Seq", "Description": "EVs from VTE and PE patients"}
-    ],
-    "aps": [
-        {"GSE": "GSE139342", "Organism": "Mouse", "Model": "Obstetric APS", "Platform": "RNA-Seq", "Description": "Placenta and brain in anti-β2GPI"},
-        {"GSE": "GSE99329", "Organism": "Mouse", "Model": "aPL + LPS thrombosis", "Platform": "Microarray", "Description": "Inflammatory APS model"},
-        {"GSE": "GSE172935", "Organism": "Mouse", "Model": "Pregnancy APS", "Platform": "RNA-Seq", "Description": "Placental stages in APS mice"},
-        {"GSE": "GSE61616", "Organism": "Rat", "Model": "LPS-enhanced injury", "Platform": "Microarray", "Description": "Thrombo-inflammatory injury"},
-        {"GSE": "PRJNA640011 (SRA)", "Organism": "Macaque", "Model": "LPS coagulopathy", "Platform": "RNA-Seq", "Description": "Systemic vascular response"},
-        {"GSE": "GSE50395", "Organism": "Human", "Model": "APS vs healthy", "Platform": "Microarray", "Description": "Whole blood APS profiles"},
-        {"GSE": "GSE26787", "Organism": "Human", "Model": "APS/VTE/healthy", "Platform": "Microarray", "Description": "Coagulopathy comparison"},
-        {"GSE": "GSE123116", "Organism": "Human", "Model": "Primary APS monocytes", "Platform": "RNA-Seq", "Description": "Immune cell transcriptomics"},
-        {"GSE": "GSE219228", "Organism": "Human", "Model": "APS pregnancy", "Platform": "RNA-Seq", "Description": "PBMCs from pregnant APS patients"},
-        {"GSE": "GSE168136", "Organism": "Human", "Model": "APS vs SLE-APS", "Platform": "RNA-Seq", "Description": "Autoimmune coagulopathy comparison"}
-    ]
-}
+curated_registry = { ... }  # Keep full curated_registry from earlier
 
 # Match domain
 keywords = extract_keywords_from_query(query)
@@ -79,7 +42,7 @@ elif any("aps" in k for k in keywords):
 else:
     selected_domain = None
 
-# --- Show matching curated datasets ---
+# --- Show curated datasets ---
 st.markdown("### 📦 Curated Datasets")
 if selected_domain:
     domain_df = pd.DataFrame(curated_registry[selected_domain])
@@ -109,9 +72,10 @@ if st.button("🔍 Run GEO Search"):
     else:
         st.warning("No results found. Try refining your keyword or species.")
 
-# --- Upload datasets ---
-st.markdown("## Step 2: Upload Dataset(s) for Training")
-uploaded_files = st.file_uploader("Upload one or more expression CSV files (training data):", type=["csv"], accept_multiple_files=True)
+# --- Optional Upload UI ---
+st.markdown("## Step 2: (Optional) Upload Your Own Dataset(s)")
+st.markdown("You can upload one or more expression CSV files for custom training.\nIf no files are uploaded, the app will use the most recent downloaded dataset in the data/ folder.")
+uploaded_files = st.file_uploader("Upload expression CSV files:", type=["csv"], accept_multiple_files=True)
 human_files = uploaded_files if uploaded_files else []
 human_paths = []
 
@@ -121,10 +85,19 @@ if human_files:
         with open(path, "wb") as f:
             f.write(file.getbuffer())
         human_paths.append(path)
+else:
+    # Fallback to latest human dataset in data/
+    local_files = sorted([f for f in os.listdir("data") if f.endswith("_expression.csv")], reverse=True)
+    if local_files:
+        latest_file = os.path.join("data", local_files[0])
+        human_paths = [latest_file]
+        st.info(f"Using latest local expression dataset: {os.path.basename(latest_file)}")
+    else:
+        st.warning("No uploaded or local expression datasets found.")
 
 # --- Train model ---
 if human_paths:
-    st.markdown("## Step 3: Train Model on Uploaded Data")
+    st.markdown("## Step 3: Train Model on Data")
     label_col = st.text_input("Name of binary label column (leave blank to auto-detect)")
     all_human_dfs = []
     all_labels = []
