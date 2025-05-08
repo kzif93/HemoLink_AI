@@ -2,6 +2,7 @@ import os
 import sys
 import streamlit as st
 import pandas as pd
+import time
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
 
@@ -13,7 +14,8 @@ from reverse_modeling import list_animal_datasets, load_multiple_datasets
 from smart_geo_animal_search import (
     smart_search_animal_geo,
     download_animal_dataset,
-    extract_keywords_from_query
+    extract_keywords_from_query,
+    download_and_prepare_dataset
 )
 from curated_sets import curated_registry
 
@@ -64,7 +66,8 @@ st.markdown("### 🔍 Smart Animal GEO Dataset Discovery")
 search_results_df = pd.DataFrame()
 if st.button("Run smart search"):
     try:
-        results = smart_search_animal_geo(query, species_input)
+        with st.spinner("Searching GEO datasets..."):
+            results = smart_search_animal_geo(query, species_input)
         search_results_df = pd.DataFrame(results)
         if not search_results_df.empty:
             if "Organism" in search_results_df.columns:
@@ -87,10 +90,25 @@ if not combined_df.empty:
     if selected_gses:
         st.success(f"✅ Selected GSEs: {selected_gses}")
 
-        # Try to split into human and animal based on curated_df info
         curated_humans = set(curated_df[curated_df["Organism"] == "Human"]["GSE"].str.lower())
         human_gses = [g for g in selected_gses if g.lower() in curated_humans]
         animal_gses = [g for g in selected_gses if g.lower() not in curated_humans]
+
+        # --- Attempt download of missing datasets ---
+        st.markdown("### 🔄 Downloading and Preparing Missing Data")
+        with st.spinner("Checking and downloading missing datasets..."):
+            for gse in selected_gses:
+                exp_path = os.path.join("data", f"{gse}_expression.csv")
+                lab_path = os.path.join("data", f"{gse}_labels.csv")
+                if not os.path.exists(exp_path):
+                    st.info(f"📥 Attempting download for {gse}...")
+                    try:
+                        download_and_prepare_dataset(gse)
+                        st.success(f"✅ Downloaded and saved {gse}")
+                    except Exception as e:
+                        st.error(f"❌ Failed to download {gse}: {e}")
+                else:
+                    st.info(f"✅ {gse} already exists.")
 
         # --- Step 3: Train Model ---
         st.markdown("## Step 3: Train Model on Selected Human Data")
