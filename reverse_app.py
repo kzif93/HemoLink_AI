@@ -1,5 +1,3 @@
-[FULL FILE WITH `curated_registry` INLINE AND OPTIONAL STEP 2 APPLIED — ALREADY SENT PREVIOUSLY BUT NOW WITH PLACEHOLDER REMOVED]
-
 import os
 import sys
 import streamlit as st
@@ -35,9 +33,9 @@ curated_registry = {
   "stroke": [...],
   "vte": [...],
   "aps": [...]
-}  # Replace `...` with actual dataset entries as shown earlier
+}  # Full dataset entries should be inserted here
 
-# --- Domain Detection ---
+# Match domain
 keywords = extract_keywords_from_query(query)
 if any("stroke" in k for k in keywords):
     selected_domain = "stroke"
@@ -48,7 +46,7 @@ elif any("aps" in k for k in keywords):
 else:
     selected_domain = None
 
-# --- Show Curated Datasets ---
+# --- Show curated datasets ---
 st.markdown("### 📦 Curated Datasets")
 if selected_domain:
     domain_df = pd.DataFrame(curated_registry[selected_domain])
