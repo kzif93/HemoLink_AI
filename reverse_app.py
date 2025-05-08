@@ -19,8 +19,38 @@ st.markdown("""
     <p style='color: gray;'>Upload your own dataset or search for GEO datasets to train on multiple human datasets and evaluate against multiple animal models.</p>
 """, unsafe_allow_html=True)
 
+# --- CURATED DATASETS ---
+st.markdown("## Curated Reference Datasets")
+
+curated_data = [
+    # Stroke – Animal
+    {"GSE": "GSE233813", "Organism": "Mouse", "Model": "MCAO (24h)", "Platform": "RNA-Seq", "Description": "Brain RNA-seq in male/female mice post-MCAO"},
+    {"GSE": "GSE162072", "Organism": "Rat", "Model": "tMCAO (3h)", "Platform": "Microarray", "Description": "Transcriptomics of MCA post-reperfusion"},
+    {"GSE": "GSE137482", "Organism": "Mouse", "Model": "Photothrombosis (24h)", "Platform": "RNA-Seq", "Description": "RNA-seq of ischemic cortex in mice"},
+    {"GSE": "PMC10369109", "Organism": "Rabbit", "Model": "Spatial vasculature", "Platform": "Visium", "Description": "Spatial transcriptomics of rabbit vessels"},
+    {"GSE": "GSE36010 / GSE78731", "Organism": "Rat", "Model": "MCAO meta-analysis", "Platform": "Multiple", "Description": "Combined rat stroke datasets"},
+
+    # Stroke – Human
+    {"GSE": "GSE16561", "Organism": "Human", "Model": "Ischemic stroke", "Platform": "Microarray", "Description": "Whole blood from stroke patients"},
+    {"GSE": "GSE22255", "Organism": "Human", "Model": "Stroke vs control", "Platform": "Microarray", "Description": "PBMCs from controls and stroke patients"},
+    {"GSE": "GSE58294", "Organism": "Human", "Model": "Acute stroke", "Platform": "Microarray", "Description": "Transcriptome of acute ischemic stroke"},
+    {"GSE": "GSE37587", "Organism": "Human", "Model": "Stroke outcome", "Platform": "Microarray", "Description": "Stratification by recovery timepoints"},
+    {"GSE": "GSE162955", "Organism": "Human", "Model": "Cerebral ischemia", "Platform": "RNA-Seq", "Description": "Whole blood profiling of stroke patients"},
+]
+
+curated_df = pd.DataFrame(curated_data)
+if not curated_df.empty:
+    st.subheader("Stroke-Related Datasets")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("**🧪 Animal Models**")
+        st.dataframe(curated_df[curated_df["Organism"] != "Human"].reset_index(drop=True))
+    with col2:
+        st.markdown("**🧬 Human Studies**")
+        st.dataframe(curated_df[curated_df["Organism"] == "Human"].reset_index(drop=True))
+
 # --- STEP 1: Human dataset selection ---
-st.markdown("### Step 1: Choose Human Dataset(s)")
+st.markdown("## Step 1: Choose Human Dataset(s)")
 uploaded_files = st.file_uploader("Upload one or more human expression CSV files:", type=["csv"], accept_multiple_files=True)
 human_files = uploaded_files if uploaded_files else []
 human_paths = []
@@ -33,12 +63,12 @@ if human_files:
         human_paths.append(path)
 
 # --- STEP 2: GEO Search ---
-st.markdown("### Step 2: Search for Human or Animal Datasets")
+st.markdown("## Step 2: Search for Human or Animal Datasets")
 smart_animal_dataset_search_ui()
 
 # --- STEP 3: Training & Evaluation ---
 if human_paths:
-    st.markdown("### Step 3: Train Model on Human Dataset(s)")
+    st.markdown("## Step 3: Train Model on Human Dataset(s)")
     label_col = st.text_input("🔠 Name of binary label column (leave blank to auto-detect)")
 
     all_human_dfs = []
@@ -57,7 +87,7 @@ if human_paths:
         model, metrics = train_model(X_all, y_all)
         st.json(metrics)
 
-        st.markdown("### Step 4: Test on Animal Models")
+        st.markdown("## Step 4: Test on Animal Models")
         try:
             animal_files = list_animal_datasets("animal_models")
             animal_datasets = load_multiple_datasets(animal_files)
@@ -67,7 +97,7 @@ if human_paths:
                 try:
                     preds, auc = test_model_on_dataset(model, animal_df, return_auc=True)
                     shap_vec = extract_shap_values(model, animal_df)
-                    similarity = compare_shap_vectors(shap_vec, shap_vec)  # placeholder for pairwise
+                    similarity = compare_shap_vectors(shap_vec, shap_vec)  # placeholder
                     leaderboard.append({
                         "Dataset": animal_name,
                         "AUC": auc,
