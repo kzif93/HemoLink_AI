@@ -51,13 +51,18 @@ st.markdown("### 📦 Curated Datasets")
 if selected_domain:
     domain_df = pd.DataFrame(curated_registry[selected_domain])
     domain_df.columns = domain_df.columns.astype(str).str.strip()
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown("**Curated Animal Datasets**")
-        st.dataframe(domain_df[domain_df["Organism"] != "Human"].reset_index(drop=True))
-    with col2:
-        st.markdown("**Curated Human Datasets**")
-        st.dataframe(domain_df[domain_df["Organism"] == "Human"].reset_index(drop=True))
+    st.write("🔍 Curated columns:", list(domain_df.columns))
+    if any(c.lower() == "organism" for c in domain_df.columns):
+        org_col = [c for c in domain_df.columns if c.lower() == "organism"][0]
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("**Curated Animal Datasets**")
+            st.dataframe(domain_df[domain_df[org_col] != "Human"].reset_index(drop=True))
+        with col2:
+            st.markdown("**Curated Human Datasets**")
+            st.dataframe(domain_df[domain_df[org_col] == "Human"].reset_index(drop=True))
+    else:
+        st.warning("⚠️ 'Organism' column not found in curated dataset.")
 else:
     st.info("No curated datasets matched your keyword. Try 'stroke', 'VTE', or 'APS'.")
 
