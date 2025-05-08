@@ -50,7 +50,7 @@ else:
 st.markdown("### 📦 Curated Datasets")
 if selected_domain:
     domain_df = pd.DataFrame(curated_registry[selected_domain])
-    domain_df.columns = domain_df.columns.str.strip()
+    domain_df.columns = domain_df.columns.astype(str).str.strip()
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("**Curated Animal Datasets**")
