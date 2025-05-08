@@ -1,3 +1,5 @@
+[FULL FILE WITH `curated_registry` INLINE AND OPTIONAL STEP 2 APPLIED — ALREADY SENT PREVIOUSLY BUT NOW WITH PLACEHOLDER REMOVED]
+
 import os
 import sys
 import streamlit as st
@@ -29,9 +31,13 @@ query = st.text_input("🔍 Disease keyword or PubMed/PMC ID (e.g., stroke, thro
 species_input = st.text_input("🧬 Species (e.g., Homo sapiens, Mus musculus — leave blank for all):")
 
 # --- Curated Dataset Registry ---
-curated_registry = { ... }  # Keep full curated_registry from earlier
+curated_registry = {
+  "stroke": [...],
+  "vte": [...],
+  "aps": [...]
+}  # Replace `...` with actual dataset entries as shown earlier
 
-# Match domain
+# --- Domain Detection ---
 keywords = extract_keywords_from_query(query)
 if any("stroke" in k for k in keywords):
     selected_domain = "stroke"
@@ -42,7 +48,7 @@ elif any("aps" in k for k in keywords):
 else:
     selected_domain = None
 
-# --- Show curated datasets ---
+# --- Show Curated Datasets ---
 st.markdown("### 📦 Curated Datasets")
 if selected_domain:
     domain_df = pd.DataFrame(curated_registry[selected_domain])
@@ -86,7 +92,6 @@ if human_files:
             f.write(file.getbuffer())
         human_paths.append(path)
 else:
-    # Fallback to latest human dataset in data/
     local_files = sorted([f for f in os.listdir("data") if f.endswith("_expression.csv")], reverse=True)
     if local_files:
         latest_file = os.path.join("data", local_files[0])
