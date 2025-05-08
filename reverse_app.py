@@ -2,9 +2,11 @@ import os
 import sys
 import streamlit as st
 import pandas as pd
-import time
+import re
+from Bio import Entrez
+from datetime import datetime
 
-# Ensure src/ folder is accessible
+# Make sure the Biopython package is installed in your Streamlit Cloud environment
 sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
 
 from preprocessing import preprocess_dataset
@@ -12,14 +14,54 @@ from model_training import train_model
 from prediction import test_model_on_dataset
 from explainability import extract_shap_values, compare_shap_vectors
 from reverse_modeling import list_animal_datasets, load_multiple_datasets
-from smart_geo_animal_search import (
-    smart_search_animal_geo,
-    download_animal_dataset,
-    extract_keywords_from_query,
-    download_and_prepare_dataset
-)
 from curated_sets import curated_registry
 
+# ---- INLINED SMART GEO SEARCH ----
+Entrez.email = "your_email@example.com"  # Replace this with your real email
+
+KEYWORDS = ["stroke", "ischemia", "thrombosis", "vte", "dvt", "aps", "antiphospholipid"]
+TISSUE_HINTS = ["brain", "cortex", "hippocampus", "vein", "blood"]
+
+def extract_keywords_from_query(query):
+    return [w.strip().lower() for w in re.split(r"[\s,]+", query)]
+
+def smart_search_animal_geo(query, species=None, max_results=100):
+    try:
+        keywords = extract_keywords_from_query(query)
+        search_term = f"{' OR '.join(keywords)} AND (gse[ETYP] OR gds[ETYP])"
+        if species:
+            search_term += f" AND {species}"
+        handle = Entrez.esearch(db="gds", term=search_term, retmax=max_results)
+        record = Entrez.read(handle)
+        ids = record["IdList"]
+
+        summaries = []
+        for gds_id in ids:
+            summary = Entrez.esummary(db="gds", id=gds_id)
+            docsum = Entrez.read(summary)[0]
+            summaries.append({
+                "GSE": docsum.get("Accession", "?"),
+                "Title": docsum.get("title", "?"),
+                "Description": docsum.get("summary", "?"),
+                "Samples": docsum.get("n_samples", "?"),
+                "Platform": docsum.get("gpl", "?"),
+                "Organism": docsum.get("taxon", "?"),
+                "ReleaseDate": docsum.get("PDAT", "?"),
+                "Score": 0,
+                "Tag": "GEO"
+            })
+        return summaries
+    except Exception as e:
+        print(f"[smart_search_animal_geo] Error: {e}")
+        return []
+
+def download_animal_dataset(gse):
+    raise NotImplementedError("Dataset downloader placeholder")
+
+def download_and_prepare_dataset(gse):
+    raise NotImplementedError("Dataset preprocessing placeholder")
+
+# ---- STREAMLIT UI ----
 st.set_page_config(page_title="HemoLink_AI – Reverse Modeling", layout="wide")
 
 st.markdown("""
@@ -27,7 +69,7 @@ st.markdown("""
     <p style='color: gray;'>Upload your own dataset or search GEO to train on multiple datasets and evaluate against preclinical models.</p>
 """, unsafe_allow_html=True)
 
-# --- Step 1: Search ---
+# Step 1: Search Input
 st.markdown("## Step 1: Search for Human or Animal Datasets")
 query = st.text_input("Enter disease keyword (e.g., stroke, thrombosis, APS):", value="stroke")
 species_input = st.text_input("Species (optional, e.g., Mus musculus):")
@@ -42,7 +84,7 @@ elif any("aps" in k for k in keywords):
 else:
     selected_domain = None
 
-# --- Curated Section ---
+# Curated datasets
 st.markdown("### 📦 Curated Datasets")
 curated_df = pd.DataFrame()
 if selected_domain:
@@ -50,7 +92,6 @@ if selected_domain:
         curated = curated_registry[selected_domain]
         curated_df = pd.DataFrame(curated)
         curated_df.columns = curated_df.columns.astype(str).str.strip()
-
         if "Organism" in curated_df.columns:
             col1, col2 = st.columns(2)
             with col1:
@@ -62,12 +103,12 @@ if selected_domain:
     except Exception as e:
         st.error(f"❌ Failed to load curated datasets: {e}")
 
-# --- Smart Search ---
-st.markdown("### 🔍 Smart Animal GEO Dataset Discovery")
+# Smart GEO/GDS search
+st.markdown("### 🔍 Smart GEO Dataset Discovery")
 search_results_df = pd.DataFrame()
 if st.button("Run smart search"):
     try:
-        with st.spinner("Searching GEO datasets..."):
+        with st.spinner("Searching GEO/GDS..."):
             results = smart_search_animal_geo(query, species_input)
         search_results_df = pd.DataFrame(results)
         if not search_results_df.empty:
@@ -82,36 +123,33 @@ if st.button("Run smart search"):
     except Exception as e:
         st.error(f"Search failed: {e}")
 
-# --- Step 2: Select Datasets ---
+# Step 2: Select datasets
 st.markdown("## Step 2: Select Dataset(s) for Modeling")
 combined_df = pd.concat([curated_df, search_results_df], ignore_index=True).dropna(subset=["GSE"]).drop_duplicates(subset="GSE")
 if not combined_df.empty:
     selected_gses = st.multiselect("Select datasets to use for modeling:", combined_df["GSE"].tolist())
-
     if selected_gses:
         st.success(f"✅ Selected GSEs: {selected_gses}")
-
         curated_humans = set(curated_df[curated_df["Organism"] == "Human"]["GSE"].str.lower())
         human_gses = [g for g in selected_gses if g.lower() in curated_humans]
         animal_gses = [g for g in selected_gses if g.lower() not in curated_humans]
 
-        # --- Attempt download of missing datasets ---
+        # Download datasets
         st.markdown("### 🔄 Downloading and Preparing Missing Data")
-        with st.spinner("Checking and downloading missing datasets..."):
+        with st.spinner("Checking and downloading..."):
             for gse in selected_gses:
                 exp_path = os.path.join("data", f"{gse}_expression.csv")
-                lab_path = os.path.join("data", f"{gse}_labels.csv")
                 if not os.path.exists(exp_path):
-                    st.info(f"📥 Attempting download for {gse}...")
                     try:
+                        st.info(f"📥 Downloading {gse}...")
                         download_and_prepare_dataset(gse)
-                        st.success(f"✅ Downloaded and saved {gse}")
+                        st.success(f"✅ {gse} downloaded")
                     except Exception as e:
                         st.error(f"❌ Failed to download {gse}: {e}")
                 else:
-                    st.info(f"✅ {gse} already exists.")
+                    st.info(f"✅ {gse} already exists")
 
-        # --- Step 3: Train Model ---
+        # Step 3: Train model
         st.markdown("## Step 3: Train Model on Selected Human Data")
         try:
             if human_gses:
@@ -121,8 +159,6 @@ if not combined_df.empty:
                 human_df, labels = result
                 if human_df.empty or labels.empty:
                     raise ValueError("Loaded data or labels are empty.")
-
-                st.write(f"📂 Loaded Human Training Data: {human_df.shape}")
                 X, y = preprocess_dataset(human_df, labels)
                 model, metrics = train_model(X, y)
                 st.success("✅ Model training complete")
@@ -132,7 +168,7 @@ if not combined_df.empty:
         except Exception as e:
             st.error(f"❌ Failed to train: {e}")
 
-        # --- Step 4: Evaluate ---
+        # Step 4: Evaluate
         st.markdown("## Step 4: Evaluate on Animal Datasets")
         try:
             if animal_gses:
