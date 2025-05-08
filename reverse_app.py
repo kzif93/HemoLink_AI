@@ -4,6 +4,7 @@ import streamlit as st
 import pandas as pd
 import time
 
+# Ensure src/ folder is accessible
 sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
 
 from preprocessing import preprocess_dataset
