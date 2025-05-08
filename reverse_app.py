@@ -28,19 +28,41 @@ st.markdown("## Step 1: Search for Human or Animal Datasets")
 query = st.text_input("Enter disease keyword (e.g., stroke, thrombosis, APS):", value="stroke")
 species_input = st.text_input("Species (optional, e.g., Mus musculus):")
 
-# Curated datasets (fixed example with correct structure)
+# Curated datasets (standard structure)
 curated_registry = {
   "stroke": [
-    {"GSE": "GSE16561", "Organism": "Human", "Model": "Ischemic Stroke", "Platform": "GPL570", "Description": "Whole blood transcriptome profiling of stroke patients."},
-    {"GSE": "GSE233813", "Organism": "Mouse", "Model": "MCAO", "Platform": "RNA-Seq", "Description": "Ischemic mouse brain post-MCAO (24h)."}
+    {"GSE": "GSE16561", "Organism": "Human", "Model": "Ischemic Stroke", "Platform": "GPL570", "Description": "Whole blood transcriptome profiling of stroke patients.", "Tag": "⭐ Curated"},
+    {"GSE": "GSE22255", "Organism": "Human", "Model": "Stroke", "Platform": "GPL570", "Description": "PBMCs from stroke vs controls.", "Tag": "⭐ Curated"},
+    {"GSE": "GSE58294", "Organism": "Human", "Model": "Stroke onset", "Platform": "Microarray", "Description": "Gene expression in acute stroke.", "Tag": "⭐ Curated"},
+    {"GSE": "GSE37587", "Organism": "Human", "Model": "Stroke outcomes", "Platform": "Microarray", "Description": "Recovery dynamics post-stroke.", "Tag": "⭐ Curated"},
+    {"GSE": "GSE162955", "Organism": "Human", "Model": "Cerebral ischemia", "Platform": "RNA-Seq", "Description": "Whole blood RNA-seq in ischemic stroke.", "Tag": "⭐ Curated"},
+    {"GSE": "GSE233813", "Organism": "Mouse", "Model": "MCAO (24h)", "Platform": "RNA-Seq", "Description": "High-quality RNA-seq of mouse brain after stroke.", "Tag": "⭐ Curated"},
+    {"GSE": "GSE162072", "Organism": "Rat", "Model": "tMCAO (3h)", "Platform": "Microarray", "Description": "Early transcriptomic changes in stroke.", "Tag": "⭐ Curated"},
+    {"GSE": "GSE137482", "Organism": "Mouse", "Model": "Photothrombosis", "Platform": "RNA-Seq", "Description": "Cortex transcriptome 24h post-stroke.", "Tag": "⭐ Curated"},
+    {"GSE": "GSE36010 / GSE78731", "Organism": "Rat", "Model": "Stroke Meta-analysis", "Platform": "Microarray", "Description": "Integrated rat model studies.", "Tag": "⭐ Curated"},
+    {"GSE": "PMC10369109", "Organism": "Rabbit", "Model": "Spatial vascular study", "Platform": "Visium", "Description": "Spatial transcriptomics of brain vessels.", "Tag": "⭐ Curated"}
   ],
   "vte": [
-    {"GSE": "GSE19151", "Organism": "Human", "Model": "VTE", "Platform": "GPL570", "Description": "Whole blood VTE profiles."},
-    {"GSE": "GSE125965", "Organism": "Mouse", "Model": "IVC stenosis", "Platform": "Microarray", "Description": "Vein wall gene expression."}
+    {"GSE": "GSE19151", "Organism": "Human", "Model": "Idiopathic VTE", "Platform": "Microarray", "Description": "Whole blood gene profiles in VTE patients.", "Tag": "⭐ Curated"},
+    {"GSE": "GSE48000", "Organism": "Human", "Model": "Factor V Leiden", "Platform": "Microarray", "Description": "Asymptomatic carriers of thrombophilic mutations.", "Tag": "⭐ Curated"},
+    {"GSE": "GSE17078", "Organism": "Human", "Model": "VTE Immune", "Platform": "Microarray", "Description": "Leukocyte transcriptomics in VTE.", "Tag": "⭐ Curated"},
+    {"GSE": "GSE26787", "Organism": "Human", "Model": "APS + VTE", "Platform": "Microarray", "Description": "Comparative APS/VTE/healthy profiles.", "Tag": "⭐ Curated"},
+    {"GSE": "GSE158312", "Organism": "Human", "Model": "PE vs VTE", "Platform": "RNA-Seq", "Description": "EV miRNA in PE and VTE.", "Tag": "⭐ Curated"},
+    {"GSE": "GSE125965", "Organism": "Mouse", "Model": "IVC stenosis", "Platform": "Microarray", "Description": "Mouse DVT vein wall transcriptomics.", "Tag": "⭐ Curated"},
+    {"GSE": "GSE145993", "Organism": "Mouse", "Model": "FeCl3 thrombosis", "Platform": "RNA-Seq", "Description": "Endothelial response to FeCl3 DVT.", "Tag": "⭐ Curated"},
+    {"GSE": "GSE245276", "Organism": "Mouse", "Model": "Anti-P-selectin DVT", "Platform": "RNA-Seq", "Description": "Antibody treatment effects in DVT.", "Tag": "⭐ Curated"},
+    {"GSE": "GSE46265", "Organism": "Rat", "Model": "IVC ligation", "Platform": "Microarray", "Description": "Post-ligation gene changes in rats.", "Tag": "⭐ Curated"}
   ],
   "aps": [
-    {"GSE": "GSE50395", "Organism": "Human", "Model": "APS", "Platform": "GPL570", "Description": "Blood transcriptional signatures in APS."},
-    {"GSE": "GSE139342", "Organism": "Mouse", "Model": "Obstetric APS", "Platform": "RNA-Seq", "Description": "Placenta and fetal brain in APS model."}
+    {"GSE": "GSE50395", "Organism": "Human", "Model": "APS vs Healthy", "Platform": "Microarray", "Description": "Large-scale whole blood study.", "Tag": "⭐ Curated"},
+    {"GSE": "GSE26787", "Organism": "Human", "Model": "APS, VTE, Healthy", "Platform": "Microarray", "Description": "Shared and distinct APS/VTE expression.", "Tag": "⭐ Curated"},
+    {"GSE": "GSE123116", "Organism": "Human", "Model": "Primary APS", "Platform": "RNA-Seq", "Description": "Monocyte transcriptomics in APS.", "Tag": "⭐ Curated"},
+    {"GSE": "GSE219228", "Organism": "Human", "Model": "APS Pregnancy", "Platform": "RNA-Seq", "Description": "PBMCs from pregnant APS patients.", "Tag": "⭐ Curated"},
+    {"GSE": "GSE168136", "Organism": "Human", "Model": "APS vs SLE-APS", "Platform": "RNA-Seq", "Description": "Comparison of APS and lupus-related APS.", "Tag": "⭐ Curated"},
+    {"GSE": "GSE139342", "Organism": "Mouse", "Model": "Obstetric APS", "Platform": "RNA-Seq", "Description": "Placenta and fetal brain profiles.", "Tag": "⭐ Curated"},
+    {"GSE": "GSE99329", "Organism": "Mouse", "Model": "Thrombotic APS", "Platform": "Microarray", "Description": "aPL + LPS 2nd-hit APS model.", "Tag": "⭐ Curated"},
+    {"GSE": "GSE172935", "Organism": "Mouse", "Model": "Pregnancy APS", "Platform": "RNA-Seq", "Description": "Gestation stage–specific profiles.", "Tag": "⭐ Curated"},
+    {"GSE": "GSE61616", "Organism": "Rat", "Model": "Immune Vascular Injury", "Platform": "Microarray", "Description": "LPS-enhanced vascular thrombosis.", "Tag": "⭐ Curated"}
   ]
 }
 
