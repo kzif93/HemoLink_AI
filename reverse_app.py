@@ -6,7 +6,7 @@ import re
 from Bio import Entrez
 from datetime import datetime
 
-# Ensure Biopython is installed (Entrez usage)
+# Ensure src/ is in path
 sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
 
 from preprocessing import preprocess_dataset
@@ -16,8 +16,8 @@ from explainability import extract_shap_values, compare_shap_vectors
 from reverse_modeling import list_animal_datasets, load_multiple_datasets
 from curated_sets import curated_registry
 
-# ---- INLINED SMART GEO SEARCH ----
-Entrez.email = "your_email@example.com"  # Replace with a valid email
+# ---- SMART GEO SEARCH ----
+Entrez.email = "your_email@example.com"
 
 KEYWORDS = ["stroke", "ischemia", "thrombosis", "vte", "dvt", "aps", "antiphospholipid"]
 TISSUE_HINTS = ["brain", "cortex", "hippocampus", "vein", "blood"]
@@ -55,15 +55,13 @@ def smart_search_animal_geo(query, species=None, max_results=100):
         print(f"[smart_search_animal_geo] Error: {e}")
         return []
 
-def download_animal_dataset(gse):
-    raise NotImplementedError("Dataset downloader placeholder")
-
 def download_and_prepare_dataset(gse):
     """Download GEO dataset, map probes to genes if needed, save cleaned CSV."""
     import GEOparse
     from probe_mapper import download_platform_annotation, map_probes_to_genes
 
     out_path = os.path.join("data", f"{gse}_expression.csv")
+    label_out = os.path.join("data", f"{gse}_labels.csv")
     if os.path.exists(out_path):
         return out_path
 
@@ -80,9 +78,23 @@ def download_and_prepare_dataset(gse):
         mapped = mapped.T
         mapped.to_csv(out_path)
 
+    # Auto-labeling
+    try:
+        metadata = pd.DataFrame({gsm: sample.metadata for gsm, sample in geo.gsms.items()}).T
+        if "disease state" in metadata.columns:
+            labels = metadata["disease state"].astype(str).str.lower().map(lambda x: 1 if "case" in x or "stroke" in x else 0)
+        elif "title" in metadata.columns:
+            labels = metadata["title"].astype(str).str.lower().map(lambda x: 1 if "stroke" in x or "patient" in x else 0)
+        else:
+            labels = pd.Series([0] * df.shape[1], index=df.columns)
+        labels.name = "label"
+        labels.to_csv(label_out)
+    except Exception as e:
+        print(f"Auto-labeling failed: {e}")
+
     return out_path
 
-# ---- STREAMLIT SETUP ----
+# ---- STREAMLIT UI ----
 st.set_page_config(page_title="HemoLink_AI – Reverse Modeling", layout="wide")
 
 st.markdown("""
@@ -90,7 +102,7 @@ st.markdown("""
     <p style='color: gray;'>Upload your own dataset or search GEO to train on multiple datasets and evaluate against preclinical models.</p>
 """, unsafe_allow_html=True)
 
-# Step 1: Search Input
+# Step 1: Search input
 st.markdown("## Step 1: Search for Human or Animal Datasets")
 query = st.text_input("Enter disease keyword (e.g., stroke, thrombosis, APS):", value="stroke")
 species_input = st.text_input("Species (optional, e.g., Mus musculus):")
@@ -124,12 +136,12 @@ if selected_domain:
     except Exception as e:
         st.error(f"❌ Failed to load curated datasets: {e}")
 
-# Smart GEO/GDS search
+# Smart search
 st.markdown("### 🔍 Smart GEO Dataset Discovery")
 search_results_df = pd.DataFrame()
 if st.button("Run smart search"):
     try:
-        with st.spinner("Searching GEO/GDS..."):
+        with st.spinner("Searching GEO..."):
             results = smart_search_animal_geo(query, species_input)
         search_results_df = pd.DataFrame(results)
         if not search_results_df.empty:
@@ -144,7 +156,7 @@ if st.button("Run smart search"):
     except Exception as e:
         st.error(f"Search failed: {e}")
 
-# Step 2: Select datasets
+# Step 2: Dataset selection
 st.markdown("## Step 2: Select Dataset(s) for Modeling")
 combined_df = pd.concat([curated_df, search_results_df], ignore_index=True).dropna(subset=["GSE"]).drop_duplicates(subset="GSE")
 if not combined_df.empty:
@@ -155,7 +167,7 @@ if not combined_df.empty:
         human_gses = [g for g in selected_gses if g.lower() in curated_humans]
         animal_gses = [g for g in selected_gses if g.lower() not in curated_humans]
 
-        # Download datasets
+        # Download
         st.markdown("### 🔄 Downloading and Preparing Missing Data")
         with st.spinner("Checking and downloading..."):
             for gse in selected_gses:
@@ -170,7 +182,7 @@ if not combined_df.empty:
                 else:
                     st.info(f"✅ {gse} already exists")
 
-        # Step 3: Train model
+        # Step 3: Train
         st.markdown("## Step 3: Train Model on Selected Human Data")
         try:
             if human_gses:
@@ -185,7 +197,7 @@ if not combined_df.empty:
                 st.success("✅ Model training complete")
                 st.json(metrics)
             else:
-                st.warning("⚠️ No human datasets selected for training.")
+                st.warning("⚠️ No human datasets selected.")
         except Exception as e:
             st.error(f"❌ Failed to train: {e}")
 
@@ -200,7 +212,7 @@ if not combined_df.empty:
                 results = test_model_on_dataset(model, eval_dfs, meta)
                 st.dataframe(results)
             else:
-                st.warning("⚠️ No animal datasets selected for evaluation.")
+                st.warning("⚠️ No animal datasets selected.")
         except Exception as e:
             st.error(f"❌ Evaluation failed: {e}")
 else:
