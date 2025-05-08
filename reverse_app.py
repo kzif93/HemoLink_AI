@@ -6,7 +6,7 @@ import re
 from Bio import Entrez
 from datetime import datetime
 
-# Make sure the Biopython package is installed in your Streamlit Cloud environment
+# Ensure Biopython is installed (Entrez usage)
 sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
 
 from preprocessing import preprocess_dataset
@@ -17,7 +17,7 @@ from reverse_modeling import list_animal_datasets, load_multiple_datasets
 from curated_sets import curated_registry
 
 # ---- INLINED SMART GEO SEARCH ----
-Entrez.email = "your_email@example.com"  # Replace this with your real email
+Entrez.email = "your_email@example.com"  # Replace with a valid email
 
 KEYWORDS = ["stroke", "ischemia", "thrombosis", "vte", "dvt", "aps", "antiphospholipid"]
 TISSUE_HINTS = ["brain", "cortex", "hippocampus", "vein", "blood"]
@@ -59,9 +59,30 @@ def download_animal_dataset(gse):
     raise NotImplementedError("Dataset downloader placeholder")
 
 def download_and_prepare_dataset(gse):
-    raise NotImplementedError("Dataset preprocessing placeholder")
+    """Download GEO dataset, map probes to genes if needed, save cleaned CSV."""
+    import GEOparse
+    from probe_mapper import download_platform_annotation, map_probes_to_genes
 
-# ---- STREAMLIT UI ----
+    out_path = os.path.join("data", f"{gse}_expression.csv")
+    if os.path.exists(out_path):
+        return out_path
+
+    geo = GEOparse.get_GEO(geo=gse, destdir="data", annotate_gpl=True)
+    gpl_name = list(geo.gpls.keys())[0] if geo.gpls else None
+    df = geo.pivot_samples("VALUE")
+    df.to_csv(out_path)
+
+    probe_ids = df.index.to_series()
+    looks_like_probes = probe_ids.str.endswith("_at").sum() / len(probe_ids) > 0.9
+    if looks_like_probes and gpl_name:
+        gpl_path = download_platform_annotation(gse)
+        mapped = map_probes_to_genes(out_path, gpl_path)
+        mapped = mapped.T
+        mapped.to_csv(out_path)
+
+    return out_path
+
+# ---- STREAMLIT SETUP ----
 st.set_page_config(page_title="HemoLink_AI – Reverse Modeling", layout="wide")
 
 st.markdown("""
