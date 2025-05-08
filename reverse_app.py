@@ -10,7 +10,12 @@ from model_training import train_model
 from prediction import test_model_on_dataset
 from explainability import extract_shap_values, compare_shap_vectors
 from reverse_modeling import list_animal_datasets, load_multiple_datasets
-from smart_geo_animal_search import smart_animal_dataset_search_ui, smart_search_animal_geo, download_animal_dataset, extract_keywords_from_query
+from smart_geo_animal_search import (
+    smart_animal_dataset_search_ui,
+    smart_search_animal_geo,
+    download_animal_dataset,
+    extract_keywords_from_query
+)
 
 st.set_page_config(page_title="HemoLink_AI – Reverse Modeling", layout="wide")
 
@@ -64,17 +69,19 @@ curated_registry = {
     ]
 }
 
-# --- SHOW MATCHING CURATED BLOCK ---
-st.markdown("## Matched Curated Datasets")
+# Match domain
 keywords = extract_keywords_from_query(query)
 if any("stroke" in k for k in keywords):
     selected_domain = "stroke"
 elif any(k in ["vte", "thrombosis", "dvt"] for k in keywords):
-    selected_domain = "vte"\elif any("aps" in k for k in keywords):
+    selected_domain = "vte"
+elif any("aps" in k for k in keywords):
     selected_domain = "aps"
 else:
     selected_domain = None
 
+# --- Show matching curated datasets ---
+st.markdown("## Matched Curated Datasets")
 if selected_domain:
     domain_df = pd.DataFrame(curated_registry[selected_domain])
     st.write(f"**{selected_domain.upper()} curated datasets**")
@@ -88,10 +95,10 @@ if selected_domain:
 else:
     st.info("No curated datasets matched your keyword. Try 'stroke', 'VTE', or 'APS'.")
 
-# --- GEO SEARCH ---
+# --- GEO search ---
 smart_animal_dataset_search_ui()
 
-# --- HUMAN UPLOAD ---
+# --- Upload human datasets ---
 st.markdown("## Step 2: Upload Your Human Dataset(s)")
 uploaded_files = st.file_uploader("Upload one or more human expression CSV files:", type=["csv"], accept_multiple_files=True)
 human_files = uploaded_files if uploaded_files else []
@@ -104,7 +111,7 @@ if human_files:
             f.write(file.getbuffer())
         human_paths.append(path)
 
-# --- TRAINING ---
+# --- Train model ---
 if human_paths:
     st.markdown("## Step 3: Train Model on Human Dataset(s)")
     label_col = st.text_input("Name of binary label column (leave blank to auto-detect)")
