@@ -23,19 +23,19 @@ st.markdown("""
     <p style='color: gray;'>Upload your own dataset or search GEO to train on multiple datasets and evaluate against preclinical models.</p>
 """, unsafe_allow_html=True)
 
-# --- Unified Search UI ---
-st.markdown("## Step 1: Search Datasets")
-query = st.text_input("🔍 Disease keyword or PubMed/PMC ID (e.g., stroke, thrombosis, PMC10369109):", value="stroke")
-species_input = st.text_input("🧬 Species (e.g., Homo sapiens, Mus musculus — leave blank for all):")
+# --- Step 1: Search ---
+st.markdown("## Step 1: Search for Human or Animal Datasets")
+query = st.text_input("Enter disease keyword (e.g., stroke, thrombosis, APS):", value="stroke")
+species_input = st.text_input("Species (optional, e.g., Mus musculus):")
 
-# --- Curated Dataset Registry ---
+# Curated datasets
 curated_registry = {
   "stroke": [...],
   "vte": [...],
   "aps": [...]
-}  # Full dataset entries should be inserted here
+}  # Actual dataset entries defined previously
 
-# Match domain
+# Determine domain
 keywords = extract_keywords_from_query(query)
 if any("stroke" in k for k in keywords):
     selected_domain = "stroke"
@@ -46,10 +46,11 @@ elif any("aps" in k for k in keywords):
 else:
     selected_domain = None
 
-# --- Show curated datasets ---
+# Show curated results
 st.markdown("### 📦 Curated Datasets")
 if selected_domain:
     domain_df = pd.DataFrame(curated_registry[selected_domain])
+    domain_df.columns = domain_df.columns.str.strip()
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("**Curated Animal Datasets**")
@@ -60,9 +61,9 @@ if selected_domain:
 else:
     st.info("No curated datasets matched your keyword. Try 'stroke', 'VTE', or 'APS'.")
 
-# --- Run Smart GEO Search ---
-st.markdown("### 🌐 GEO Search Results")
-if st.button("🔍 Run GEO Search"):
+# Smart GEO Search
+st.markdown("### 🔍 Smart Animal GEO Dataset Discovery")
+if st.button("Run smart search"):
     results = smart_search_animal_geo(query, species_input)
     if results:
         results_df = pd.DataFrame(results)
@@ -74,67 +75,66 @@ if st.button("🔍 Run GEO Search"):
             st.markdown("**Found Human Datasets**")
             st.dataframe(results_df[results_df["organism"] == "Homo sapiens"].reset_index(drop=True))
     else:
-        st.warning("No results found. Try refining your keyword or species.")
+        st.warning("No datasets found.")
 
-# --- Optional Upload UI ---
-st.markdown("## Step 2: (Optional) Upload Your Own Dataset(s)")
-st.markdown("You can upload one or more expression CSV files for custom training.\nIf no files are uploaded, the app will use the most recent downloaded dataset in the data/ folder.")
-uploaded_files = st.file_uploader("Upload expression CSV files:", type=["csv"], accept_multiple_files=True)
-human_files = uploaded_files if uploaded_files else []
+# --- Step 2: Upload (Optional) ---
+st.markdown("## Step 2: Upload Dataset(s) for Training")
+st.markdown("This step is optional. If nothing is uploaded, the latest dataset from /data/ will be used.")
+uploaded_files = st.file_uploader("Upload one or more expression CSV files (training data):", type=["csv"], accept_multiple_files=True)
 human_paths = []
 
-if human_files:
-    for file in human_files:
-        path = os.path.join("data", file.name)
-        with open(path, "wb") as f:
-            f.write(file.getbuffer())
-        human_paths.append(path)
+if uploaded_files:
+    for f in uploaded_files:
+        dest = os.path.join("data", f.name)
+        with open(dest, "wb") as out:
+            out.write(f.getbuffer())
+        human_paths.append(dest)
 else:
-    local_files = sorted([f for f in os.listdir("data") if f.endswith("_expression.csv")], reverse=True)
-    if local_files:
-        latest_file = os.path.join("data", local_files[0])
-        human_paths = [latest_file]
-        st.info(f"Using latest local expression dataset: {os.path.basename(latest_file)}")
+    candidates = sorted([f for f in os.listdir("data") if f.endswith("_expression.csv")], reverse=True)
+    if candidates:
+        fallback = os.path.join("data", candidates[0])
+        human_paths = [fallback]
+        st.info(f"Using fallback file: {os.path.basename(fallback)}")
     else:
-        st.warning("No uploaded or local expression datasets found.")
+        st.warning("No available expression files found.")
 
-# --- Train model ---
+# --- Step 3: Train model ---
 if human_paths:
-    st.markdown("## Step 3: Train Model on Data")
-    label_col = st.text_input("Name of binary label column (leave blank to auto-detect)")
-    all_human_dfs = []
-    all_labels = []
+    st.markdown("## Step 3: Train Model on Human Dataset(s)")
+    label_col = st.text_input("Label column (binary, leave empty to auto-detect):")
+    dfs = []
+    labels = []
     for path in human_paths:
         df = pd.read_csv(path, index_col=0)
-        y = df[label_col] if label_col in df.columns else None
-        if y is not None:
+        if label_col and label_col in df.columns:
+            y = df[label_col]
             df = df.drop(columns=[label_col])
-            all_human_dfs.append(df)
-            all_labels.append(y)
+        else:
+            st.warning(f"No label found in {os.path.basename(path)}. Skipping.")
+            continue
+        dfs.append(df)
+        labels.append(y)
 
-    if all_labels:
-        X_all = pd.concat(all_human_dfs)
-        y_all = pd.concat(all_labels)
-        model, metrics = train_model(X_all, y_all)
+    if dfs:
+        X = pd.concat(dfs)
+        y = pd.concat(labels)
+        model, metrics = train_model(X, y)
         st.json(metrics)
 
+        # --- Step 4: Evaluate ---
         st.markdown("## Step 4: Evaluate on Animal Models")
         try:
             animal_files = list_animal_datasets("animal_models")
-            animal_datasets = load_multiple_datasets(animal_files)
+            animal_data = load_multiple_datasets(animal_files)
             leaderboard = []
-            for animal_name, animal_df in animal_datasets.items():
+            for name, animal_df in animal_data.items():
                 try:
                     preds, auc = test_model_on_dataset(model, animal_df, return_auc=True)
                     shap_vec = extract_shap_values(model, animal_df)
-                    similarity = compare_shap_vectors(shap_vec, shap_vec)
-                    leaderboard.append({
-                        "Dataset": animal_name,
-                        "AUC": auc,
-                        "SHAP Similarity": similarity
-                    })
+                    sim = compare_shap_vectors(shap_vec, shap_vec)
+                    leaderboard.append({"Dataset": name, "AUC": auc, "SHAP Similarity": sim})
                 except Exception as e:
-                    st.warning(f"Failed on {animal_name}: {e}")
+                    st.error(f"Failed on {name}: {e}")
             st.dataframe(pd.DataFrame(leaderboard))
-        except FileNotFoundError:
-            st.error("No animal model folder or datasets found. Please use the GEO search to download models.")
+        except Exception as e:
+            st.error(f"Animal model loading failed: {e}")
