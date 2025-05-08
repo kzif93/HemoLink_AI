@@ -28,23 +28,16 @@ st.markdown("## Step 1: Search for Human or Animal Datasets")
 query = st.text_input("Enter disease keyword (e.g., stroke, thrombosis, APS):", value="stroke")
 species_input = st.text_input("Species (optional, e.g., Mus musculus):")
 
-# Curated datasets (hardcoded, trimmed for brevity)
-curated_registry = {
-  "stroke": [
-    {"GSE": "GSE16561", "Organism": "Human", "Model": "Ischemic Stroke", "Platform": "GPL570", "Description": "Whole blood transcriptome profiling of stroke patients.", "Tag": "⭐ Curated"},
-    {"GSE": "GSE233813", "Organism": "Mouse", "Model": "MCAO", "Platform": "RNA-Seq", "Description": "Mouse MCAO model", "Tag": "⭐ Curated"},
-  ],
-  "vte": [
-    {"GSE": "GSE19151", "Organism": "Human", "Model": "VTE", "Platform": "Microarray", "Description": "VTE expression dataset.", "Tag": "⭐ Curated"},
-    {"GSE": "GSE125965", "Organism": "Mouse", "Model": "IVC DVT", "Platform": "Microarray", "Description": "Mouse vein thrombosis model", "Tag": "⭐ Curated"},
-  ]
-}
+# Full curated registry
+from curated_sets import curated_registry
 
 keywords = extract_keywords_from_query(query)
 if any("stroke" in k for k in keywords):
     selected_domain = "stroke"
 elif any(k in ["vte", "thrombosis", "dvt"] for k in keywords):
     selected_domain = "vte"
+elif any("aps" in k for k in keywords):
+    selected_domain = "aps"
 else:
     selected_domain = None
 
@@ -91,31 +84,36 @@ if st.button("Run smart search"):
 st.markdown("## Step 2: Select Dataset(s) for Modeling")
 combined_df = pd.concat([curated_df, search_results_df], ignore_index=True).dropna(subset=["GSE"]).drop_duplicates(subset="GSE")
 if not combined_df.empty:
-    selected_gses = st.multiselect("Select datasets to use for training:", combined_df["GSE"].tolist())
+    selected_gses = st.multiselect("Select datasets to use for modeling:", combined_df["GSE"].tolist())
 
     if selected_gses:
         st.success(f"✅ Selected GSEs: {selected_gses}")
 
-        # --- Step 3: Load & Train ---
+        # Try to split into human and animal based on curated_df info
+        curated_humans = set(curated_df[curated_df["Organism"] == "Human"]["GSE"].str.lower())
+        human_gses = [g for g in selected_gses if g.lower() in curated_humans]
+        animal_gses = [g for g in selected_gses if g.lower() not in curated_humans]
+
+        # --- Step 3: Train Model ---
         st.markdown("## Step 3: Train Model on Selected Human Data")
-        human_gses = [g for g in selected_gses if g.lower() in curated_df[curated_df["Organism"] == "Human"]["GSE"].str.lower().tolist()]
         try:
             if human_gses:
-                human_df, labels = load_multiple_datasets(human_gses, kind="human")
+                human_df, labels = load_multiple_datasets(human_gses)
                 st.write(f"📂 Loaded Human Training Data: {human_df.shape}")
                 X, y = preprocess_dataset(human_df, labels)
                 model, metrics = train_model(X, y)
+                st.success("✅ Model training complete")
                 st.json(metrics)
             else:
-                st.warning("⚠️ No human training datasets among selection.")
+                st.warning("⚠️ No human datasets selected for training.")
         except Exception as e:
             st.error(f"❌ Failed to train: {e}")
 
+        # --- Step 4: Evaluate ---
         st.markdown("## Step 4: Evaluate on Animal Datasets")
-        animal_gses = [g for g in selected_gses if g.lower() not in human_gses]
         try:
             if animal_gses:
-                eval_dfs, meta = load_multiple_datasets(animal_gses, kind="animal")
+                eval_dfs, meta = load_multiple_datasets(animal_gses)
                 results = test_model_on_dataset(model, eval_dfs, meta)
                 st.dataframe(results)
             else:
