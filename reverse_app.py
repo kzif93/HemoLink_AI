@@ -28,11 +28,20 @@ st.markdown("## Step 1: Search for Human or Animal Datasets")
 query = st.text_input("Enter disease keyword (e.g., stroke, thrombosis, APS):", value="stroke")
 species_input = st.text_input("Species (optional, e.g., Mus musculus):")
 
-# Curated datasets
+# Curated datasets (fixed example with correct structure)
 curated_registry = {
-  "stroke": [...],  # Your curated stroke dataset entries
-  "vte": [...],     # Your curated VTE dataset entries
-  "aps": [...]      # Your curated APS dataset entries
+  "stroke": [
+    {"GSE": "GSE16561", "Organism": "Human", "Model": "Ischemic Stroke", "Platform": "GPL570", "Description": "Whole blood transcriptome profiling of stroke patients."},
+    {"GSE": "GSE233813", "Organism": "Mouse", "Model": "MCAO", "Platform": "RNA-Seq", "Description": "Ischemic mouse brain post-MCAO (24h)."}
+  ],
+  "vte": [
+    {"GSE": "GSE19151", "Organism": "Human", "Model": "VTE", "Platform": "GPL570", "Description": "Whole blood VTE profiles."},
+    {"GSE": "GSE125965", "Organism": "Mouse", "Model": "IVC stenosis", "Platform": "Microarray", "Description": "Vein wall gene expression."}
+  ],
+  "aps": [
+    {"GSE": "GSE50395", "Organism": "Human", "Model": "APS", "Platform": "GPL570", "Description": "Blood transcriptional signatures in APS."},
+    {"GSE": "GSE139342", "Organism": "Mouse", "Model": "Obstetric APS", "Platform": "RNA-Seq", "Description": "Placenta and fetal brain in APS model."}
+  ]
 }
 
 # Determine domain
@@ -49,20 +58,23 @@ else:
 # Show curated results
 st.markdown("### 📦 Curated Datasets")
 if selected_domain:
-    domain_df = pd.DataFrame(curated_registry[selected_domain])
-    domain_df.columns = domain_df.columns.astype(str).str.strip()
-    st.write("🔍 Curated columns:", list(domain_df.columns))
-    if any(c.lower() == "organism" for c in domain_df.columns):
-        org_col = [c for c in domain_df.columns if c.lower() == "organism"][0]
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("**Curated Animal Datasets**")
-            st.dataframe(domain_df[domain_df[org_col] != "Human"].reset_index(drop=True))
-        with col2:
-            st.markdown("**Curated Human Datasets**")
-            st.dataframe(domain_df[domain_df[org_col] == "Human"].reset_index(drop=True))
-    else:
-        st.warning("⚠️ 'Organism' column not found in curated dataset.")
+    try:
+        domain_df = pd.DataFrame(curated_registry[selected_domain])
+        domain_df.columns = domain_df.columns.astype(str).str.strip()
+        st.write("🔍 Curated columns:", list(domain_df.columns))
+        if any(c.lower() == "organism" for c in domain_df.columns):
+            org_col = [c for c in domain_df.columns if c.lower() == "organism"][0]
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("**Curated Animal Datasets**")
+                st.dataframe(domain_df[domain_df[org_col] != "Human"].reset_index(drop=True))
+            with col2:
+                st.markdown("**Curated Human Datasets**")
+                st.dataframe(domain_df[domain_df[org_col] == "Human"].reset_index(drop=True))
+        else:
+            st.warning("⚠️ 'Organism' column not found in curated dataset.")
+    except Exception as e:
+        st.error(f"❌ Failed to load curated datasets: {e}")
 else:
     st.info("No curated datasets matched your keyword. Try 'stroke', 'VTE', or 'APS'.")
 
@@ -74,16 +86,16 @@ if st.button("Run smart search"):
         if results is not None and not pd.DataFrame(results).empty:
             results_df = pd.DataFrame(results)
             st.write("Smart search result columns:", results_df.columns.tolist())
-            if "organism" in results_df.columns:
+            if "Organism" in results_df.columns:
                 col1, col2 = st.columns(2)
                 with col1:
                     st.markdown("**Found Animal Datasets**")
-                    st.dataframe(results_df[results_df["organism"] != "Homo sapiens"].reset_index(drop=True))
+                    st.dataframe(results_df[results_df["Organism"] != "Homo sapiens"].reset_index(drop=True))
                 with col2:
                     st.markdown("**Found Human Datasets**")
-                    st.dataframe(results_df[results_df["organism"] == "Homo sapiens"].reset_index(drop=True))
+                    st.dataframe(results_df[results_df["Organism"] == "Homo sapiens"].reset_index(drop=True))
             else:
-                st.warning("⚠️ 'organism' column not found in smart search results.")
+                st.warning("⚠️ 'Organism' column not found in smart search results.")
         else:
             st.warning("No datasets found.")
     except Exception as e:
