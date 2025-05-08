@@ -15,6 +15,7 @@ from smart_geo_animal_search import (
     download_animal_dataset,
     extract_keywords_from_query
 )
+from curated_sets import curated_registry
 
 st.set_page_config(page_title="HemoLink_AI – Reverse Modeling", layout="wide")
 
@@ -27,9 +28,6 @@ st.markdown("""
 st.markdown("## Step 1: Search for Human or Animal Datasets")
 query = st.text_input("Enter disease keyword (e.g., stroke, thrombosis, APS):", value="stroke")
 species_input = st.text_input("Species (optional, e.g., Mus musculus):")
-
-# Full curated registry
-from curated_sets import curated_registry
 
 keywords = extract_keywords_from_query(query)
 if any("stroke" in k for k in keywords):
@@ -98,7 +96,13 @@ if not combined_df.empty:
         st.markdown("## Step 3: Train Model on Selected Human Data")
         try:
             if human_gses:
-                human_df, labels = load_multiple_datasets(human_gses)
+                result = load_multiple_datasets(human_gses)
+                if not result or len(result) != 2:
+                    raise ValueError("Returned data is empty or malformed.")
+                human_df, labels = result
+                if human_df.empty or labels.empty:
+                    raise ValueError("Loaded data or labels are empty.")
+
                 st.write(f"📂 Loaded Human Training Data: {human_df.shape}")
                 X, y = preprocess_dataset(human_df, labels)
                 model, metrics = train_model(X, y)
@@ -113,7 +117,10 @@ if not combined_df.empty:
         st.markdown("## Step 4: Evaluate on Animal Datasets")
         try:
             if animal_gses:
-                eval_dfs, meta = load_multiple_datasets(animal_gses)
+                result = load_multiple_datasets(animal_gses)
+                if not result or len(result) != 2:
+                    raise ValueError("Returned data is empty or malformed.")
+                eval_dfs, meta = result
                 results = test_model_on_dataset(model, eval_dfs, meta)
                 st.dataframe(results)
             else:
