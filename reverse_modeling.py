@@ -1,47 +1,42 @@
 import os
 import pandas as pd
 
-def load_multiple_datasets(gse_list):
+
+def list_animal_datasets(folder_path):
     """
-    Load expression and label data from multiple GSEs and concatenate.
-    Returns:
-        - merged_df: gene expression dataframe
-        - merged_labels: corresponding binary labels
+    List available animal expression datasets in a folder.
     """
-    all_dfs = []
+    if not os.path.exists(folder_path):
+        raise FileNotFoundError(f"Animal model folder not found: {folder_path}")
+
+    files = [f for f in os.listdir(folder_path) if f.endswith("_expression.csv")]
+    return [os.path.splitext(f)[0].replace("_expression", "") for f in files]
+
+
+def load_multiple_datasets(gse_list, data_dir="data"):
+    """
+    Load and combine expression data and labels from multiple datasets.
+    """
+    all_data = []
     all_labels = []
 
     for gse in gse_list:
-        expr_path = os.path.join("data", f"{gse}_expression.csv")
-        label_path = os.path.join("data", f"{gse}_labels.csv")
+        exp_path = os.path.join(data_dir, f"{gse}_expression.csv")
+        label_path = os.path.join(data_dir, f"{gse}_labels.csv")
 
-        if not os.path.exists(expr_path):
-            print(f"❌ Missing expression file for {gse}")
-            continue
-        if not os.path.exists(label_path):
-            print(f"❌ Missing label file for {gse}")
-            continue
+        if not os.path.exists(exp_path) or not os.path.exists(label_path):
+            raise FileNotFoundError(f"Missing files for {gse}: {exp_path} or {label_path}")
 
-        try:
-            df = pd.read_csv(expr_path, index_col=0)
-            labels = pd.read_csv(label_path, index_col=0).squeeze("columns")
+        df = pd.read_csv(exp_path, index_col=0)
+        labels = pd.read_csv(label_path, index_col=0).squeeze()
 
-            if df.empty or labels.empty:
-                print(f"⚠️ Empty data in {gse}")
-                continue
+        df = df.loc[:, df.columns.intersection(labels.index)]
+        labels = labels.loc[df.columns]
 
-            shared_samples = df.index.intersection(labels.index)
-            df = df.loc[shared_samples]
-            labels = labels.loc[shared_samples]
+        all_data.append(df)
+        all_labels.append(labels)
 
-            all_dfs.append(df)
-            all_labels.append(labels)
-        except Exception as e:
-            print(f"❌ Error loading {gse}: {e}")
+    X = pd.concat(all_data, axis=1).T  # Combine samples
+    y = pd.concat(all_labels, axis=0)
 
-    if all_dfs and all_labels:
-        merged_df = pd.concat(all_dfs)
-        merged_labels = pd.concat(all_labels)
-        return merged_df, merged_labels
-    else:
-        return None
+    return X, y
