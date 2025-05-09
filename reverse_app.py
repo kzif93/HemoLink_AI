@@ -193,6 +193,8 @@ if not combined_df.empty:
                 if human_df.empty or labels.empty:
                     raise ValueError("Loaded data or labels are empty.")
                 X, y = preprocess_dataset(human_df, labels.values.ravel())
+                # Patch: Add labels into DataFrame
+                human_df["label"] = labels
                 model, metrics = train_model(X, y)
                 st.success("✅ Model training complete")
                 st.json(metrics)
