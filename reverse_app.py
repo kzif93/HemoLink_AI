@@ -66,6 +66,8 @@ def download_and_prepare_dataset(gse):
 
     geo = GEOparse.get_GEO(geo=gse, destdir="data", annotate_gpl=True)
     gpl_name = list(geo.gpls.keys())[0] if geo.gpls else None
+
+    # Force sample columns to be GSM IDs
     df = pd.DataFrame({gsm: sample.table.set_index("ID_REF")["VALUE"] for gsm, sample in geo.gsms.items()})
     df.to_csv(out_path)
 
@@ -96,7 +98,7 @@ def download_and_prepare_dataset(gse):
             except Exception as inner_e:
                 print(f"[Auto-labeling column failed] {col}: {inner_e}")
                 continue
-                if not success:
+        if not success:
             print("[Auto-labeling] ⚠️ No usable metadata column found. Assigning default label 0 to all.")
             print("[DEBUG] Showing metadata preview")
             try:
@@ -211,16 +213,12 @@ if not combined_df.empty:
                 if isinstance(labels, pd.DataFrame):
                     labels = labels.iloc[:, 0]
 
-                # Align labels and data
+                # Align labels with expression matrix
                 labels.index = labels.index.astype(str).str.strip()
-                human_df.columns = human_df.columns.astype(str).str.replace(r"^VALUE_", "", regex=True).str.strip()
-
-                # Show unmatched samples
+                human_df.columns = human_df.columns.astype(str).str.strip()
                 unmatched = [idx for idx in labels.index if idx not in human_df.columns]
                 if unmatched:
                     st.warning(f"⚠️ Unmatched label samples: {unmatched[:5]}... (+{len(unmatched)-5} more)" if len(unmatched) > 5 else f"⚠️ Unmatched label samples: {unmatched}")
-
-                # Keep only matched labels
                 labels = labels[labels.index.isin(human_df.columns)]
                 human_df = human_df[labels.index]
 
