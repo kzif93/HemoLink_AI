@@ -207,8 +207,15 @@ if not combined_df.empty:
                     labels = labels.iloc[:, 0]
 
                 # Align labels and data
-                labels.index = labels.index.astype(str)
-                human_df.columns = human_df.columns.astype(str)
+                labels.index = labels.index.astype(str).str.strip()
+                human_df.columns = human_df.columns.astype(str).str.strip()
+
+                # Show unmatched samples
+                unmatched = [idx for idx in labels.index if idx not in human_df.columns]
+                if unmatched:
+                    st.warning(f"⚠️ Unmatched label samples: {unmatched[:5]}... (+{len(unmatched)-5} more)" if len(unmatched) > 5 else f"⚠️ Unmatched label samples: {unmatched}")
+
+                # Keep only matched labels
                 labels = labels[labels.index.isin(human_df.columns)]
                 human_df = human_df[labels.index]
 
