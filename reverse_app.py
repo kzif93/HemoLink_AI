@@ -98,6 +98,9 @@ def download_and_prepare_dataset(gse):
                 continue
         if not success:
             print("[Auto-labeling] ⚠️ No usable metadata column found. Assigning default label 0 to all.")
+            print("
+[Available metadata preview]")
+            print(metadata.iloc[:, :5].head(10))  # Show first 5 metadata columns, 10 rows
             labels = pd.Series([0] * df.shape[1], index=df.columns, name="label")
             labels.to_csv(label_out)
     except Exception as e:
