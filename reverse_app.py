@@ -92,8 +92,11 @@ def download_and_prepare_dataset(gse):
                     print(f"[Label distribution] {labels.value_counts().to_dict()}")
                     success = True
                     break
+                else:
+                    print(f"[Auto-labeling] ❌ Column {col} has only one class.")
             except Exception:
                 continue
+
         if not success:
             st.warning("⚠️ Auto-labeling failed. Assigning default label 0 to all.")
             try:
@@ -205,44 +208,6 @@ if not combined_df.empty:
                     raise ValueError("Returned data is empty or malformed.")
                 human_df, labels = result
                 if human_df.empty or labels.empty:
-                    raise ValueError("Loaded data or labels are empty.")
-                if isinstance(labels, pd.DataFrame):
-                    labels = labels.iloc[:, 0]
-
-                labels.index = labels.index.astype(str).str.strip()
-                human_df.columns = human_df.columns.astype(str).str.strip()
-                unmatched = [idx for idx in labels.index if idx not in human_df.columns]
-                if unmatched:
-                    st.warning(f"⚠️ Unmatched label samples: {unmatched[:5]}... (+{len(unmatched)-5} more)" if len(unmatched) > 5 else f"⚠️ Unmatched label samples: {unmatched}")
-                labels = labels[labels.index.isin(human_df.columns)]
-                human_df = human_df[labels.index]
-
-                st.warning(f"⚠️ Label distribution: {labels.value_counts().to_dict()}")
-                if labels.nunique() < 2:
-                    raise ValueError("Only one class found in labels.")
-
-                X, y = preprocess_dataset(human_df, labels)
-                model, metrics = train_model(X, y)
-                st.success("✅ Model training complete")
-                st.json(metrics)
-            else:
-                st.warning("⚠️ No human datasets selected.")
-        except Exception as e:
-            st.error(f"❌ Failed to train: {e}")
-
-        # Step 4: Evaluate
-        st.markdown("## Step 4: Evaluate on Animal Datasets")
-        try:
-            if animal_gses:
-                result = load_multiple_datasets(animal_gses)
-                if not result or len(result) != 2:
-                    raise ValueError("Returned data is empty or malformed.")
-                eval_dfs, meta = result
-                results = test_model_on_dataset(model, eval_dfs, meta)
-                st.dataframe(results)
-            else:
-                st.warning("⚠️ No animal datasets selected.")
-        except Exception as e:
-            st.error(f"❌ Evaluation failed: {e}")
-else:
-    st.info("ℹ️ No datasets available to select.")
+                    raise ValueError("Loaded data or labels are
+::contentReference[oaicite:1]{index=1}
+ 
