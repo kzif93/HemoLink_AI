@@ -208,7 +208,7 @@ if not combined_df.empty:
 
                 # Align labels and data
                 labels.index = labels.index.astype(str).str.strip()
-                human_df.columns = human_df.columns.astype(str).str.strip()
+                human_df.columns = human_df.columns.astype(str).str.replace(r"^VALUE_", "", regex=True).str.strip()
 
                 # Show unmatched samples
                 unmatched = [idx for idx in labels.index if idx not in human_df.columns]
