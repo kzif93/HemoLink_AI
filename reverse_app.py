@@ -163,7 +163,7 @@ if not combined_df.empty:
     selected_gses = st.multiselect("Select datasets to use for modeling:", combined_df["GSE"].tolist())
     if selected_gses:
         st.success(f"✅ Selected GSEs: {selected_gses}")
-        curated_humans = set(curated_df[curated_df["Organism"] == "Human"]["GSE"].str.lower())
+        curated_humans = set(curated_df[curated_df["Organism"] == "Human"]["GSE"].astype(str).str.lower().tolist())
         human_gses = [g for g in selected_gses if g.lower() in curated_humans]
         animal_gses = [g for g in selected_gses if g.lower() not in curated_humans]
 
