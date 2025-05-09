@@ -98,14 +98,11 @@ def download_and_prepare_dataset(gse):
                 continue
         if not success:
             print("[Auto-labeling] ⚠️ No usable metadata column found. Assigning default label 0 to all.")
-            print("
-[Available metadata preview]")
+            print("[Available metadata preview]\n")
             try:
                 print(metadata.iloc[:, :5].head(10))
             except Exception as preview_err:
-                print(f"[Metadata preview failed] {preview_err}")
-            labels = pd.Series([0] * df.shape[1], index=df.columns, name="label")
-            labels.to_csv(label_out)
+                print(
     except Exception as e:
         print(f"[Auto-labeling failed] ❌ {e}")
 
