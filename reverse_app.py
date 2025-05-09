@@ -185,7 +185,7 @@ if not combined_df.empty:
                 exp_path = os.path.join("data", f"{gse}_expression.csv")
                 if not os.path.exists(exp_path):
                     try:
-                        st.info(f"📅 Downloading {gse}...")
+                        st.info(f"📥 Downloading {gse}...")
                         download_and_prepare_dataset(gse)
                         st.success(f"✅ {gse} downloaded")
                     except Exception as e:
@@ -205,8 +205,16 @@ if not combined_df.empty:
                     raise ValueError("Loaded data or labels are empty.")
                 if isinstance(labels, pd.DataFrame):
                     labels = labels.iloc[:, 0]
+
+                # Align labels and data
+                labels.index = labels.index.astype(str)
+                human_df.columns = human_df.columns.astype(str)
+                labels = labels[labels.index.isin(human_df.columns)]
+                human_df = human_df[labels.index]
+
                 if labels.nunique() < 2:
                     raise ValueError("Only one class found in labels.")
+
                 X, y = preprocess_dataset(human_df, labels)
                 model, metrics = train_model(X, y)
                 st.success("✅ Model training complete")
