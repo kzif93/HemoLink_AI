@@ -81,6 +81,11 @@ def download_and_prepare_dataset(gse):
 
     try:
         metadata = pd.DataFrame({gsm: sample.metadata for gsm, sample in geo.gsms.items()}).T
+
+        # === TEMPORARY DEBUG for GSE22255 ===
+        if gse.lower() == "gse22255":
+            st.warning("🧪 DEBUG: Showing metadata preview for GSE22255")
+            st.dataframe(metadata.iloc[:, :10].head(10))
         success = False
         for col in metadata.columns:
             try:
