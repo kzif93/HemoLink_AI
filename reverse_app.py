@@ -212,6 +212,7 @@ if not combined_df.empty:
                 labels = labels[labels.index.isin(human_df.columns)]
                 human_df = human_df[labels.index]
 
+                st.warning(f"⚠️ Label distribution: {labels.value_counts().to_dict()}")
                 if labels.nunique() < 2:
                     raise ValueError("Only one class found in labels.")
 
