@@ -1,44 +1,62 @@
 import os
 import pandas as pd
 
-
-def list_animal_datasets(folder_path):
-    """
-    List available animal expression datasets in a folder.
-    """
+def list_animal_datasets(folder_path="animal_models"):
+    """List available pre-downloaded animal expression datasets."""
     if not os.path.exists(folder_path):
         raise FileNotFoundError(f"Animal model folder not found: {folder_path}")
-
     files = [f for f in os.listdir(folder_path) if f.endswith("_expression.csv")]
-    return [os.path.splitext(f)[0].replace("_expression", "") for f in files]
+    return [f.replace("_expression.csv", "") for f in files]
 
+def load_multiple_datasets(gse_list):
+    """
+    Load and merge multiple GEO datasets with label alignment.
 
-def load_multiple_datasets(gse_list, data_dir="data"):
+    Returns:
+        X: Feature matrix
+        y: Label series
     """
-    Load and combine expression data and labels from multiple datasets.
-    """
-    all_data = []
-    all_labels = []
+    all_dfs = []
 
     for gse in gse_list:
-        exp_path = os.path.join(data_dir, f"{gse}_expression.csv")
-        label_path = os.path.join(data_dir, f"{gse}_labels.csv")
+        expr_path = f"data/{gse}_expression.csv"
+        label_path = f"data/{gse}_labels.csv"
 
-        if not os.path.exists(exp_path) or not os.path.exists(label_path):
-            raise FileNotFoundError(f"Missing files for {gse}: {exp_path} or {label_path}")
+        if not os.path.exists(expr_path) or not os.path.exists(label_path):
+            print(f"[WARN] Missing files for {gse}, skipping.")
+            continue
 
-        df = pd.read_csv(exp_path, index_col=0)
+        expr_df = pd.read_csv(expr_path, index_col=0)
         labels_df = pd.read_csv(label_path, index_col=0)
-        label_col = labels_df.columns[0]  # Assume the first column is the label
-        labels = labels_df[label_col]
 
-        df = df.loc[:, df.columns.intersection(labels.index)]
-        labels = labels.loc[df.columns]
+        if expr_df.shape[0] > expr_df.shape[1]:
+            expr_df = expr_df.T
 
-        all_data.append(df)
-        all_labels.append(labels)
+        if "label" not in labels_df.columns:
+            labels_df.columns = ["label"]
 
-    X = pd.concat(all_data, axis=1).T  # Combine samples
-    y = pd.concat(all_labels, axis=0)
+        labels = labels_df["label"]
+
+        # Align samples
+        common_samples = expr_df.index.intersection(labels.index)
+        if len(common_samples) < 2:
+            print(f"[WARN] Not enough overlapping samples in {gse}, skipping.")
+            continue
+
+        expr_df = expr_df.loc[common_samples]
+        labels = labels.loc[common_samples]
+
+        expr_df["label"] = labels
+        all_dfs.append(expr_df)
+
+    if not all_dfs:
+        return None, None
+
+    merged_df = pd.concat(all_dfs, axis=0)
+    if "label" not in merged_df.columns:
+        raise ValueError("Label column not found after merging datasets.")
+
+    X = merged_df.drop(columns=["label"])
+    y = merged_df["label"]
 
     return X, y
