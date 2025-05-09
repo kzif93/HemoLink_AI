@@ -84,7 +84,7 @@ def download_and_prepare_dataset(gse):
             try:
                 values = metadata[col].astype(str).str.lower()
                 labels = values.map(
-                    lambda x: 1 if any(k in x for k in ["case", "stroke", "dvt", "aps", "patient"]) else 0
+                    lambda x: 1 if any(k in x for k in ["case", "stroke", "dvt", "aps", "patient", "control", "healthy", "normal"]) else 0
                 )
                 if labels.nunique() == 2:
                     labels.name = "label"
