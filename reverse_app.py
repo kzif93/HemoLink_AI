@@ -84,9 +84,7 @@ def download_and_prepare_dataset(gse):
         for col in metadata.columns:
             try:
                 values = metadata[col].astype(str).str.lower()
-                labels = values.map(
-                    lambda x: 1 if any(k in x for k in KEYWORDS) else 0
-                )
+                labels = values.map(lambda x: 1 if any(k in x for k in KEYWORDS) else 0)
                 if labels.nunique() == 2:
                     labels.name = "label"
                     labels.to_csv(label_out)
@@ -94,7 +92,7 @@ def download_and_prepare_dataset(gse):
                     print(f"[Label distribution] {labels.value_counts().to_dict()}")
                     success = True
                     break
-            except Exception as inner_e:
+            except Exception:
                 continue
         if not success:
             st.warning("⚠️ Auto-labeling failed. Assigning default label 0 to all.")
