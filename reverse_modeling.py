@@ -1,24 +1,47 @@
 import os
 import pandas as pd
 
-def list_animal_datasets(folder_path):
+def load_multiple_datasets(gse_list):
     """
-    Lists all .csv files in the given folder that represent animal model expression datasets.
+    Load expression and label data from multiple GSEs and concatenate.
+    Returns:
+        - merged_df: gene expression dataframe
+        - merged_labels: corresponding binary labels
     """
-    if not os.path.exists(folder_path):
-        raise FileNotFoundError(f"Animal model folder not found: {folder_path}")
-    return [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.endswith("_expression.csv")]
+    all_dfs = []
+    all_labels = []
 
-def load_multiple_datasets(file_paths):
-    """
-    Loads multiple expression datasets from file paths into a dictionary keyed by dataset name.
-    """
-    datasets = {}
-    for path in file_paths:
+    for gse in gse_list:
+        expr_path = os.path.join("data", f"{gse}_expression.csv")
+        label_path = os.path.join("data", f"{gse}_labels.csv")
+
+        if not os.path.exists(expr_path):
+            print(f"❌ Missing expression file for {gse}")
+            continue
+        if not os.path.exists(label_path):
+            print(f"❌ Missing label file for {gse}")
+            continue
+
         try:
-            df = pd.read_csv(path, index_col=0)
-            name = os.path.basename(path).replace("_expression.csv", "")
-            datasets[name] = df
+            df = pd.read_csv(expr_path, index_col=0)
+            labels = pd.read_csv(label_path, index_col=0).squeeze("columns")
+
+            if df.empty or labels.empty:
+                print(f"⚠️ Empty data in {gse}")
+                continue
+
+            shared_samples = df.index.intersection(labels.index)
+            df = df.loc[shared_samples]
+            labels = labels.loc[shared_samples]
+
+            all_dfs.append(df)
+            all_labels.append(labels)
         except Exception as e:
-            print(f"Failed to load {path}: {e}")
-    return datasets
+            print(f"❌ Error loading {gse}: {e}")
+
+    if all_dfs and all_labels:
+        merged_df = pd.concat(all_dfs)
+        merged_labels = pd.concat(all_labels)
+        return merged_df, merged_labels
+    else:
+        return None
