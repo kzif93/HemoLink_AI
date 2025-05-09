@@ -28,7 +28,9 @@ def load_multiple_datasets(gse_list, data_dir="data"):
             raise FileNotFoundError(f"Missing files for {gse}: {exp_path} or {label_path}")
 
         df = pd.read_csv(exp_path, index_col=0)
-        labels = pd.read_csv(label_path, index_col=0).squeeze()
+        labels_df = pd.read_csv(label_path, index_col=0)
+        label_col = labels_df.columns[0]  # Assume the first column is the label
+        labels = labels_df[label_col]
 
         df = df.loc[:, df.columns.intersection(labels.index)]
         labels = labels.loc[df.columns]
