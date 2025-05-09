@@ -13,52 +13,52 @@ from preprocessing import preprocess_dataset
 from model_training import train_model
 from prediction import test_model_on_dataset
 from explainability import extract_shap_values, compare_shap_vectors
-from reverse_modeling import load_multiple_datasets
+from reverse_modeling import list_animal_datasets, load_multiple_datasets
 from curated_sets import curated_registry
 from probe_mapper import download_platform_annotation, map_probes_to_genes
+import GEOparse
 
+# ---- SMART GEO SEARCH ----
 Entrez.email = "your_email@example.com"
 
-# Search helpers
 def extract_keywords_from_query(query):
     return [w.strip().lower() for w in re.split(r"[\s,]+", query)]
 
-def smart_search_geo(query, species=None, max_results=100):
+def smart_search_animal_geo(query, species=None, max_results=100):
     try:
         keywords = extract_keywords_from_query(query)
-        term = f"{' OR '.join(keywords)} AND (gse[ETYP] OR gds[ETYP])"
+        search_term = f"{' OR '.join(keywords)} AND (gse[ETYP] OR gds[ETYP])"
         if species:
-            term += f" AND {species}"
-        handle = Entrez.esearch(db="gds", term=term, retmax=max_results)
+            search_term += f" AND {species}"
+        handle = Entrez.esearch(db="gds", term=search_term, retmax=max_results)
         record = Entrez.read(handle)
         ids = record["IdList"]
 
         summaries = []
         for gds_id in ids:
             summary = Entrez.esummary(db="gds", id=gds_id)
-            doc = Entrez.read(summary)[0]
+            docsum = Entrez.read(summary)[0]
             summaries.append({
-                "GSE": doc.get("Accession", "?"),
-                "Title": doc.get("title", "?"),
-                "Description": doc.get("summary", "?"),
-                "Samples": doc.get("n_samples", "?"),
-                "Platform": doc.get("gpl", "?"),
-                "Organism": doc.get("taxon", "?"),
-                "ReleaseDate": doc.get("PDAT", "?"),
+                "GSE": docsum.get("Accession", "?"),
+                "Title": docsum.get("title", "?"),
+                "Description": docsum.get("summary", "?"),
+                "Samples": docsum.get("n_samples", "?"),
+                "Platform": docsum.get("gpl", "?"),
+                "Organism": docsum.get("taxon", "?"),
+                "ReleaseDate": docsum.get("PDAT", "?"),
+                "Score": 0,
                 "Tag": "GEO"
             })
-        return pd.DataFrame(summaries)
+        return summaries
     except Exception as e:
-        st.error(f"Search error: {e}")
-        return pd.DataFrame()
+        print(f"[smart_search_animal_geo] Error: {e}")
+        return []
 
 def download_and_prepare_dataset(gse):
-    import GEOparse
-
-    out_path = f"data/{gse}_expression.csv"
-    label_out = f"data/{gse}_labels.csv"
-    if os.path.exists(out_path):
-        return out_path
+    out_path = os.path.join("data", f"{gse}_expression.csv")
+    label_out = os.path.join("data", f"{gse}_labels.csv")
+    if os.path.exists(out_path) and os.path.exists(label_out):
+        return out_path, label_out
 
     geo = GEOparse.get_GEO(geo=gse, destdir="data", annotate_gpl=True)
     gpl_name = list(geo.gpls.keys())[0] if geo.gpls else None
@@ -66,114 +66,125 @@ def download_and_prepare_dataset(gse):
     df.to_csv(out_path)
 
     probe_ids = df.index.to_series()
-    if probe_ids.str.endswith("_at").sum() / len(probe_ids) > 0.9 and gpl_name:
+    looks_like_probes = probe_ids.str.endswith("_at").sum() / len(probe_ids) > 0.9
+    if looks_like_probes and gpl_name:
         gpl_path = download_platform_annotation(gse)
         mapped = map_probes_to_genes(out_path, gpl_path)
         mapped = mapped.T
         mapped.to_csv(out_path)
 
+    # Auto-labeling
     try:
-        metadata = pd.DataFrame({gsm: s.metadata for gsm, s in geo.gsms.items()}).T
-        if "disease state" in metadata.columns:
-            labels = metadata["disease state"].astype(str).str.lower().map(lambda x: 1 if "case" in x or "stroke" in x else 0)
-        elif "title" in metadata.columns:
-            labels = metadata["title"].astype(str).str.lower().map(lambda x: 1 if "stroke" in x or "patient" in x else 0)
-        else:
-            labels = pd.Series([0] * df.shape[1], index=df.columns)
-        labels.name = "label"
-        labels.to_csv(label_out)
+        metadata = pd.DataFrame({gsm: sample.metadata for gsm, sample in geo.gsms.items()}).T
+        candidates = metadata.select_dtypes(include='object').apply(lambda col: col.astype(str).str.lower())
+        for col in candidates.columns:
+            if candidates[col].str.contains("case|control|patient|stroke|healthy").any():
+                binary = candidates[col].str.contains("case|stroke|patient", case=False).astype(int)
+                binary.name = "label"
+                binary.to_csv(label_out)
+                return out_path, label_out
     except Exception as e:
-        st.warning(f"Auto-labeling failed for {gse}: {e}")
-    return out_path
+        print(f"Auto-labeling failed: {e}")
+    return out_path, None
 
-# Streamlit UI
+# ---- STREAMLIT UI ----
 st.set_page_config(page_title="HemoLink_AI – Reverse Modeling", layout="wide")
-st.markdown("<h1>Reverse Modeling – Match Human Data to Animal Models</h1>", unsafe_allow_html=True)
+st.title("Reverse Modeling – Match Human Data to Animal Models")
 
-query = st.text_input("Step 1: Enter disease keyword (e.g., stroke, thrombosis, APS):", value="stroke")
-species = st.text_input("Optional species (e.g., Mus musculus):")
+# Step 1: Search input
+st.subheader("Step 1: Search for Human or Animal Datasets")
+query = st.text_input("Enter disease keyword (e.g., stroke, thrombosis, APS):", value="stroke")
+species_input = st.text_input("Species (optional, e.g., Mus musculus):")
 
-selected_domain = None
-kws = extract_keywords_from_query(query)
-if any("stroke" in k for k in kws):
+keywords = extract_keywords_from_query(query)
+if any("stroke" in k for k in keywords):
     selected_domain = "stroke"
-elif any(k in ["vte", "thrombosis", "dvt"] for k in kws):
+elif any(k in ["vte", "thrombosis", "dvt"] for k in keywords):
     selected_domain = "vte"
-elif any("aps" in k for k in kws):
+elif any("aps" in k for k in keywords):
     selected_domain = "aps"
-
-curated_df = pd.DataFrame()
-if selected_domain and selected_domain in curated_registry:
-    curated_df = pd.DataFrame(curated_registry[selected_domain])
-    curated_df.columns = curated_df.columns.astype(str).str.strip()
-
-st.markdown("### 📦 Curated Datasets")
-if not curated_df.empty and "Organism" in curated_df.columns:
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown("**Curated Animal Datasets**")
-        st.dataframe(curated_df[curated_df["Organism"] != "Human"])
-    with col2:
-        st.markdown("**Curated Human Datasets**")
-        st.dataframe(curated_df[curated_df["Organism"] == "Human"])
-
-st.markdown("### 🔍 Smart GEO Dataset Discovery")
-if st.button("Run smart search"):
-    with st.spinner("Searching GEO..."):
-        smart_df = smart_search_geo(query, species)
-    if not smart_df.empty:
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("**Smart Animal Datasets**")
-            st.dataframe(smart_df[smart_df["Organism"] != "Homo sapiens"])
-        with col2:
-            st.markdown("**Smart Human Datasets**")
-            st.dataframe(smart_df[smart_df["Organism"] == "Homo sapiens"])
 else:
-    smart_df = pd.DataFrame()
+    selected_domain = None
 
-st.markdown("## Step 2: Select Datasets")
-combined_df = pd.concat([curated_df, smart_df], ignore_index=True).dropna(subset=["GSE"]).drop_duplicates(subset="GSE")
-selected = st.multiselect("Select GSEs:", combined_df["GSE"].tolist())
+# Curated datasets
+st.markdown("### 📦 Curated Datasets")
+curated_df = pd.DataFrame()
+if selected_domain:
+    try:
+        curated = curated_registry[selected_domain]
+        curated_df = pd.DataFrame(curated)
+        curated_df.columns = curated_df.columns.astype(str).str.strip()
+        if "Organism" in curated_df.columns:
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("**Curated Animal Datasets**")
+                st.dataframe(curated_df[curated_df["Organism"] != "Human"].reset_index(drop=True))
+            with col2:
+                st.markdown("**Curated Human Datasets**")
+                st.dataframe(curated_df[curated_df["Organism"] == "Human"].reset_index(drop=True))
+    except Exception as e:
+        st.error(f"❌ Failed to load curated datasets: {e}")
 
-if selected:
-    st.success(f"✅ Selected GSEs: {selected}")
-    curated_human_gses = set(curated_df[curated_df["Organism"] == "Human"]["GSE"].str.lower())
-    human_gses = [g for g in selected if g.lower() in curated_human_gses or g == "GSE16561"]
-    animal_gses = [g for g in selected if g not in human_gses]
+# Smart search
+st.markdown("### 🔍 Smart GEO Dataset Discovery")
+search_results_df = pd.DataFrame()
+if st.button("Run smart search"):
+    try:
+        with st.spinner("Searching GEO..."):
+            results = smart_search_animal_geo(query, species_input)
+        search_results_df = pd.DataFrame(results)
+        if not search_results_df.empty:
+            if "Organism" in search_results_df.columns:
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown("**Found Animal Datasets**")
+                    st.dataframe(search_results_df[search_results_df["Organism"] != "Homo sapiens"].reset_index(drop=True))
+                with col2:
+                    st.markdown("**Found Human Datasets**")
+                    st.dataframe(search_results_df[search_results_df["Organism"] == "Homo sapiens"].reset_index(drop=True))
+    except Exception as e:
+        st.error(f"Search failed: {e}")
 
-    # Step 3: Download and Train
+# Step 2: Select datasets
+st.subheader("Step 2: Select Datasets")
+combined_df = pd.concat([curated_df, search_results_df], ignore_index=True).dropna(subset=["GSE"]).drop_duplicates(subset="GSE")
+selected_gses = st.multiselect("Select GSEs:", combined_df["GSE"].tolist())
+
+if selected_gses:
+    st.success(f"✅ Selected GSEs: {selected_gses}")
+
+    # Download and prepare
     st.markdown("### 🔄 Downloading and Preparing")
-    for gse in selected:
-        try:
-            download_and_prepare_dataset(gse)
-            st.info(f"✅ {gse} ready")
-        except Exception as e:
-            st.error(f"❌ {gse} failed: {e}")
+    expression_dfs = []
+    label_series = []
 
-    st.markdown("## Step 3: Train Model")
-    if human_gses:
+    for gse in selected_gses:
+        exp_path = os.path.join("data", f"{gse}_expression.csv")
+        lbl_path = os.path.join("data", f"{gse}_labels.csv")
+        if not (os.path.exists(exp_path) and os.path.exists(lbl_path)):
+            st.info(f"📥 Downloading {gse}...")
+            exp_path, lbl_path = download_and_prepare_dataset(gse)
+        if os.path.exists(exp_path) and os.path.exists(lbl_path):
+            df = pd.read_csv(exp_path, index_col=0)
+            labels = pd.read_csv(lbl_path, index_col=0).squeeze("columns")
+            df["label"] = labels
+            expression_dfs.append(df)
+            st.success(f"✅ {gse} ready")
+
+    # Combine all
+    if expression_dfs:
+        full_df = pd.concat(expression_dfs, axis=0, join="inner")
+        st.write("🧬 Combined dataset preview:")
+        st.dataframe(full_df.head())
+
+        # Step 3: Train
+        st.subheader("Step 3: Train Model")
         try:
-            df, labels = load_multiple_datasets(human_gses)
-            if isinstance(labels, pd.DataFrame):
-                labels = labels.iloc[:, 0]
-            X, y = preprocess_dataset(df, label_column=labels.name)
+            X, y = preprocess_dataset(full_df, label_column="label")
             model, metrics = train_model(X, y)
-            st.success("Model trained successfully.")
+            st.success("✅ Model trained")
             st.json(metrics)
         except Exception as e:
             st.error(f"❌ Failed to train: {e}")
-    else:
-        st.warning("⚠️ No human datasets selected.")
-
-    # Step 4: Evaluate
-    st.markdown("## Step 4: Evaluate on Animal Data")
-    if animal_gses:
-        try:
-            animal_df, meta = load_multiple_datasets(animal_gses)
-            preds = test_model_on_dataset(model, animal_df, meta)
-            st.dataframe(preds)
-        except Exception as e:
-            st.error(f"❌ Evaluation failed: {e}")
-    else:
-        st.warning("⚠️ No animal datasets selected.")
+else:
+    st.info("ℹ️ Select at least one dataset to proceed.")
