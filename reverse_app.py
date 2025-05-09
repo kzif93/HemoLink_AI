@@ -79,20 +79,29 @@ def download_and_prepare_dataset(gse):
 
     try:
         metadata = pd.DataFrame({gsm: sample.metadata for gsm, sample in geo.gsms.items()}).T
-        for col in ["disease state", "group", "title"]:
-            if col in metadata.columns:
-                labels = metadata[col].astype(str).str.lower().map(
+        success = False
+        for col in metadata.columns:
+            try:
+                values = metadata[col].astype(str).str.lower()
+                labels = values.map(
                     lambda x: 1 if any(k in x for k in ["case", "stroke", "dvt", "aps", "patient"]) else 0
                 )
                 if labels.nunique() == 2:
                     labels.name = "label"
                     labels.to_csv(label_out)
+                    print(f"[Auto-labeling] ✅ Used column: {col}")
+                    print(f"[Label distribution] {labels.value_counts().to_dict()}")
+                    success = True
                     break
-        else:
+            except Exception as inner_e:
+                print(f"[Auto-labeling column failed] {col}: {inner_e}")
+                continue
+        if not success:
+            print("[Auto-labeling] ⚠️ No usable metadata column found. Assigning default label 0 to all.")
             labels = pd.Series([0] * df.shape[1], index=df.columns, name="label")
             labels.to_csv(label_out)
     except Exception as e:
-        print(f"[Auto-labeling failed] {e}")
+        print(f"[Auto-labeling failed] ❌ {e}")
 
     return out_path
 
@@ -176,7 +185,7 @@ if not combined_df.empty:
                 exp_path = os.path.join("data", f"{gse}_expression.csv")
                 if not os.path.exists(exp_path):
                     try:
-                        st.info(f"📥 Downloading {gse}...")
+                        st.info(f"📅 Downloading {gse}...")
                         download_and_prepare_dataset(gse)
                         st.success(f"✅ {gse} downloaded")
                     except Exception as e:
