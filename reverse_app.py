@@ -19,7 +19,7 @@ from curated_sets import curated_registry
 # ---- SMART GEO SEARCH ----
 Entrez.email = "your_email@example.com"
 
-KEYWORDS = ["stroke", "ischemia", "thrombosis", "vte", "dvt", "aps", "antiphospholipid"]
+KEYWORDS = ["stroke", "ischemia", "thrombosis", "vte", "dvt", "aps", "antiphospholipid", "control", "healthy", "normal"]
 TISSUE_HINTS = ["brain", "cortex", "hippocampus", "vein", "blood"]
 
 def extract_keywords_from_query(query):
@@ -67,7 +67,6 @@ def download_and_prepare_dataset(gse):
     geo = GEOparse.get_GEO(geo=gse, destdir="data", annotate_gpl=True)
     gpl_name = list(geo.gpls.keys())[0] if geo.gpls else None
 
-    # Force sample columns to be GSM IDs
     df = pd.DataFrame({gsm: sample.table.set_index("ID_REF")["VALUE"] for gsm, sample in geo.gsms.items()})
     df.to_csv(out_path)
 
@@ -86,7 +85,7 @@ def download_and_prepare_dataset(gse):
             try:
                 values = metadata[col].astype(str).str.lower()
                 labels = values.map(
-                    lambda x: 1 if any(k in x for k in ["case", "stroke", "dvt", "aps", "patient", "control", "healthy", "normal"]) else 0
+                    lambda x: 1 if any(k in x for k in KEYWORDS) else 0
                 )
                 if labels.nunique() == 2:
                     labels.name = "label"
@@ -96,15 +95,14 @@ def download_and_prepare_dataset(gse):
                     success = True
                     break
             except Exception as inner_e:
-                print(f"[Auto-labeling column failed] {col}: {inner_e}")
                 continue
         if not success:
-            print("[Auto-labeling] ⚠️ No usable metadata column found. Assigning default label 0 to all.")
-            print("[DEBUG] Showing metadata preview")
+            st.warning("⚠️ Auto-labeling failed. Assigning default label 0 to all.")
             try:
-                print(metadata.iloc[:, :5].head(10))
+                st.warning("⚠️ Showing metadata preview (first 5 columns × 10 samples):")
+                st.dataframe(metadata.iloc[:, :5].head(10))
             except Exception as preview_err:
-                print(f"[Metadata preview failed] {preview_err}")
+                st.error(f"⚠️ Metadata preview failed: {preview_err}")
             labels = pd.Series([0] * df.shape[1], index=df.columns, name="label")
             labels.to_csv(label_out)
     except Exception as e:
@@ -213,7 +211,6 @@ if not combined_df.empty:
                 if isinstance(labels, pd.DataFrame):
                     labels = labels.iloc[:, 0]
 
-                # Align labels with expression matrix
                 labels.index = labels.index.astype(str).str.strip()
                 human_df.columns = human_df.columns.astype(str).str.strip()
                 unmatched = [idx for idx in labels.index if idx not in human_df.columns]
