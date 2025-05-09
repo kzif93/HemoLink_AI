@@ -66,7 +66,7 @@ def download_and_prepare_dataset(gse):
 
     geo = GEOparse.get_GEO(geo=gse, destdir="data", annotate_gpl=True)
     gpl_name = list(geo.gpls.keys())[0] if geo.gpls else None
-    df = geo.pivot_samples("VALUE")
+    df = pd.DataFrame({gsm: sample.table.set_index("ID_REF")["VALUE"] for gsm, sample in geo.gsms.items()})
     df.to_csv(out_path)
 
     probe_ids = df.index.to_series()
