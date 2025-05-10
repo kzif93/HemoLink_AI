@@ -82,9 +82,20 @@ def download_and_prepare_dataset(gse):
             labels.name = "label"
             labels.to_csv(label_out)
         # === OPTIONAL LABEL PREVIEW UI ===
-        if st.checkbox("🔍 Preview labels before proceeding"):
-            st.dataframe(pd.DataFrame({"Sample": labels.index, "Label": labels.values}))
-            st.warning("These labels will be used for training.")
+        try:
+            if st.checkbox("🔍 Preview labels before proceeding"):
+                st.dataframe(pd.DataFrame({"Sample": labels.index, "Label": labels.values}))
+                st.warning("These labels will be used for training.")
+                if st.checkbox("✏️ Manually edit labels?", key="edit_labels"):
+                    edited = st.data_editor(pd.DataFrame({"Sample": labels.index, "Label": labels.values}), num_rows="dynamic")
+                    if "Label" in edited.columns and edited["Label"].nunique() == 2:
+                        labels = edited.set_index("Sample")["Label"]
+                        labels.to_csv(label_out)
+                        st.success("✅ Updated labels saved.")
+                    else:
+                        st.error("❌ Edited labels must contain exactly two classes.")
+        except Exception as preview_error:
+            st.error(f"❌ Label preview/edit failed: {preview_error}")
             if st.checkbox("✏️ Manually edit labels?", key="edit_labels"):
                 edited = st.data_editor(pd.DataFrame({"Sample": labels.index, "Label": labels.values}), num_rows="dynamic")
                 if "Label" in edited.columns and edited["Label"].nunique() == 2:
@@ -120,9 +131,20 @@ def download_and_prepare_dataset(gse):
                         labels.name = "label"
                         labels.to_csv(label_out)
         # === OPTIONAL LABEL PREVIEW UI ===
-        if st.checkbox("🔍 Preview labels before proceeding"):
-            st.dataframe(pd.DataFrame({"Sample": labels.index, "Label": labels.values}))
-            st.warning("These labels will be used for training.")
+        try:
+            if st.checkbox("🔍 Preview labels before proceeding"):
+                st.dataframe(pd.DataFrame({"Sample": labels.index, "Label": labels.values}))
+                st.warning("These labels will be used for training.")
+                if st.checkbox("✏️ Manually edit labels?", key="edit_labels"):
+                    edited = st.data_editor(pd.DataFrame({"Sample": labels.index, "Label": labels.values}), num_rows="dynamic")
+                    if "Label" in edited.columns and edited["Label"].nunique() == 2:
+                        labels = edited.set_index("Sample")["Label"]
+                        labels.to_csv(label_out)
+                        st.success("✅ Updated labels saved.")
+                    else:
+                        st.error("❌ Edited labels must contain exactly two classes.")
+        except Exception as preview_error:
+            st.error(f"❌ Label preview/edit failed: {preview_error}")
             if st.checkbox("✏️ Manually edit labels?", key="edit_labels"):
                 edited = st.data_editor(pd.DataFrame({"Sample": labels.index, "Label": labels.values}), num_rows="dynamic")
                 if "Label" in edited.columns and edited["Label"].nunique() == 2:
@@ -150,9 +172,20 @@ def download_and_prepare_dataset(gse):
                 labels.name = "label"
                 labels.to_csv(label_out)
         # === OPTIONAL LABEL PREVIEW UI ===
-        if st.checkbox("🔍 Preview labels before proceeding"):
-            st.dataframe(pd.DataFrame({"Sample": labels.index, "Label": labels.values}))
-            st.warning("These labels will be used for training.")
+        try:
+            if st.checkbox("🔍 Preview labels before proceeding"):
+                st.dataframe(pd.DataFrame({"Sample": labels.index, "Label": labels.values}))
+                st.warning("These labels will be used for training.")
+                if st.checkbox("✏️ Manually edit labels?", key="edit_labels"):
+                    edited = st.data_editor(pd.DataFrame({"Sample": labels.index, "Label": labels.values}), num_rows="dynamic")
+                    if "Label" in edited.columns and edited["Label"].nunique() == 2:
+                        labels = edited.set_index("Sample")["Label"]
+                        labels.to_csv(label_out)
+                        st.success("✅ Updated labels saved.")
+                    else:
+                        st.error("❌ Edited labels must contain exactly two classes.")
+        except Exception as preview_error:
+            st.error(f"❌ Label preview/edit failed: {preview_error}")
             if st.checkbox("✏️ Manually edit labels?", key="edit_labels"):
                 edited = st.data_editor(pd.DataFrame({"Sample": labels.index, "Label": labels.values}), num_rows="dynamic")
                 if "Label" in edited.columns and edited["Label"].nunique() == 2:
@@ -185,9 +218,20 @@ def download_and_prepare_dataset(gse):
                     labels.name = "label"
                     labels.to_csv(label_out)
         # === OPTIONAL LABEL PREVIEW UI ===
-        if st.checkbox("🔍 Preview labels before proceeding"):
-            st.dataframe(pd.DataFrame({"Sample": labels.index, "Label": labels.values}))
-            st.warning("These labels will be used for training.")
+        try:
+            if st.checkbox("🔍 Preview labels before proceeding"):
+                st.dataframe(pd.DataFrame({"Sample": labels.index, "Label": labels.values}))
+                st.warning("These labels will be used for training.")
+                if st.checkbox("✏️ Manually edit labels?", key="edit_labels"):
+                    edited = st.data_editor(pd.DataFrame({"Sample": labels.index, "Label": labels.values}), num_rows="dynamic")
+                    if "Label" in edited.columns and edited["Label"].nunique() == 2:
+                        labels = edited.set_index("Sample")["Label"]
+                        labels.to_csv(label_out)
+                        st.success("✅ Updated labels saved.")
+                    else:
+                        st.error("❌ Edited labels must contain exactly two classes.")
+        except Exception as preview_error:
+            st.error(f"❌ Label preview/edit failed: {preview_error}")
             if st.checkbox("✏️ Manually edit labels?", key="edit_labels"):
                 edited = st.data_editor(pd.DataFrame({"Sample": labels.index, "Label": labels.values}), num_rows="dynamic")
                 if "Label" in edited.columns and edited["Label"].nunique() == 2:
@@ -221,9 +265,20 @@ def download_and_prepare_dataset(gse):
             labels = pd.Series([0] * df.shape[1], index=df.columns, name="label")
             labels.to_csv(label_out)
         # === OPTIONAL LABEL PREVIEW UI ===
-        if st.checkbox("🔍 Preview labels before proceeding"):
-            st.dataframe(pd.DataFrame({"Sample": labels.index, "Label": labels.values}))
-            st.warning("These labels will be used for training.")
+        try:
+            if st.checkbox("🔍 Preview labels before proceeding"):
+                st.dataframe(pd.DataFrame({"Sample": labels.index, "Label": labels.values}))
+                st.warning("These labels will be used for training.")
+                if st.checkbox("✏️ Manually edit labels?", key="edit_labels"):
+                    edited = st.data_editor(pd.DataFrame({"Sample": labels.index, "Label": labels.values}), num_rows="dynamic")
+                    if "Label" in edited.columns and edited["Label"].nunique() == 2:
+                        labels = edited.set_index("Sample")["Label"]
+                        labels.to_csv(label_out)
+                        st.success("✅ Updated labels saved.")
+                    else:
+                        st.error("❌ Edited labels must contain exactly two classes.")
+        except Exception as preview_error:
+            st.error(f"❌ Label preview/edit failed: {preview_error}")
             if st.checkbox("✏️ Manually edit labels?", key="edit_labels"):
                 edited = st.data_editor(pd.DataFrame({"Sample": labels.index, "Label": labels.values}), num_rows="dynamic")
                 if "Label" in edited.columns and edited["Label"].nunique() == 2:
