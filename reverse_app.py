@@ -108,6 +108,7 @@ def download_and_prepare_dataset(gse):
     except Exception as e:
         st.error(f"❌ Labeling failed: {e}")
     return out_path
+    
 def train_model(X, y):
     from sklearn.ensemble import RandomForestClassifier
     from sklearn.metrics import roc_auc_score, classification_report
@@ -122,6 +123,7 @@ def train_model(X, y):
 
         if isinstance(y, pd.Series) or isinstance(y, pd.DataFrame):
             y = y.values.ravel()
+        
         y = np.asarray(y).astype(int)
 
         model = RandomForestClassifier(n_estimators=100, random_state=42)
