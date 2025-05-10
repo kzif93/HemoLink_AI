@@ -124,6 +124,7 @@ def train_model(X, y):
             X = X.values
 
         model = RandomForestClassifier(n_estimators=100, random_state=42)
+        print("Error is in line 127")
         model.fit(X, y)
 
         preds = model.predict_proba(X)[:, 1]
