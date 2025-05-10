@@ -3,7 +3,6 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import roc_auc_score, classification_report
 import streamlit as st
 
-
 def train_model(X, y):
     """
     Train a basic RandomForest model and return model and evaluation metrics.
@@ -18,6 +17,8 @@ def train_model(X, y):
         # Ensure y is a flat vector
         if isinstance(y, pd.DataFrame):
             y = y.iloc[:, 0]
+
+        y = y.values.ravel() if hasattr(y, 'values') else y  # flatten to 1D
         y = y.astype(int)
 
         model = RandomForestClassifier(n_estimators=100, random_state=42)
