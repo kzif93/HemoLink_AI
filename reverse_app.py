@@ -234,7 +234,7 @@ if not combined_df.empty:
                 else:
                     st.info(f"✅ {gse} already exists")
 
-        # Step 3: Train
+# Step 3: Train
 import numpy as np
 st.markdown("## Step 3: Train Model")
 try:
@@ -277,7 +277,7 @@ except Exception as e:
     st.error(f"❌ Failed to train: {e}")
 
            
-        # Step 4: Evaluate
+    # Step 4: Evaluate
     st.markdown("## Step 4: Evaluate on Animal Datasets")
     try:
             if animal_gses:
