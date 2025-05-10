@@ -1,3 +1,4 @@
+
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import roc_auc_score, classification_report
@@ -38,3 +39,4 @@ def train_model(X, y):
 
     except Exception as e:
         raise RuntimeError(f"Training failed: {e}")
+
