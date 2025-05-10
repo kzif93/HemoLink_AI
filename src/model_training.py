@@ -1,34 +1,30 @@
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import roc_auc_score, classification_report
+from sklearn.utils.multiclass import unique_labels
 import streamlit as st
 
 def train_model(X, y):
-    """
-    Train a basic RandomForest model and return model and evaluation metrics.
-    """
     try:
-        # Show preview of features and labels
         st.write("🧬 Training feature matrix (X):", X.shape)
         st.write("🏷️ Labels (y):", y.shape)
         st.write("🔍 y type:", type(y))
-        st.write("🔍 y unique values:", y.unique())
+        st.write("🔍 y unique values:", pd.Series(y).unique())
 
-        # Ensure y is a flat vector
+        # Flatten label to 1D NumPy array
         if isinstance(y, pd.DataFrame):
             y = y.iloc[:, 0]
-
-        y = y.values.ravel() if hasattr(y, 'values') else y  # flatten to 1D
+        y = y.values.ravel() if hasattr(y, 'values') else y
         y = y.astype(int)
 
         model = RandomForestClassifier(n_estimators=100, random_state=42)
         model.fit(X, y)
+
         preds = model.predict_proba(X)[:, 1]
-
         auc = roc_auc_score(y, preds)
-        from sklearn.utils.multiclass import unique_labels
 
-        y_true = y if not isinstance(y, pd.Series) else y.values
+        # Ensure y and preds are 1D arrays
+        y_true = y
         y_pred = (preds > 0.5).astype(int)
         labels = unique_labels(y_true, y_pred)
 
