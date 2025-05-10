@@ -26,7 +26,13 @@ def train_model(X, y):
         preds = model.predict_proba(X)[:, 1]
 
         auc = roc_auc_score(y, preds)
-        report = classification_report(y, (preds > 0.5).astype(int), output_dict=True)
+        from sklearn.utils.multiclass import unique_labels
+
+        y_true = y if not isinstance(y, pd.Series) else y.values
+        y_pred = (preds > 0.5).astype(int)
+        labels = unique_labels(y_true, y_pred)
+
+        report = classification_report(y_true, y_pred, labels=labels, output_dict=True)
 
         metrics = {
             "roc_auc": round(auc, 4),
