@@ -123,12 +123,10 @@ def download_and_prepare_dataset(gse):
         st.error(f"❌ Labeling failed: {e}")
     return out_path
 
-
 def train_model(X, y):
-    import pandas as pd
+    import numpy as np
     from sklearn.ensemble import RandomForestClassifier
     from sklearn.metrics import roc_auc_score, classification_report
-    from sklearn.utils.multiclass import unique_labels
     import streamlit as st
 
     try:
@@ -137,27 +135,18 @@ def train_model(X, y):
         st.write("🔍 y type:", type(y))
         st.write("🔍 y unique values:", pd.Series(y).unique())
 
-        if isinstance(y, pd.DataFrame):
-            y = y.iloc[:, 0]
-        y = y.values.ravel() if hasattr(y, 'values') else y
-        y = y.astype(int)
+        if isinstance(y, (pd.Series, pd.DataFrame)):
+            y = y.values.ravel()
+        y = np.asarray(y).astype(int)
 
         model = RandomForestClassifier(n_estimators=100, random_state=42)
         model.fit(X, y)
 
         preds = model.predict_proba(X)[:, 1]
         auc = roc_auc_score(y, preds)
-
-        y_true = y
         y_pred = (preds > 0.5).astype(int)
-        labels = unique_labels(y_true, y_pred)
 
-        
-        st.write("DEBUG y_true type:", type(y_true))
-        st.write("DEBUG y_pred type:", type(y_pred))
-        st.write("DEBUG y_true[0]:", y_true[0])
-        st.write("DEBUG y_pred[0]:", y_pred[0])
-        report = classification_report(y_true, y_pred, output_dict=True)
+        report = classification_report(y, y_pred, output_dict=True)
 
         metrics = {
             "roc_auc": round(auc, 4),
@@ -166,17 +155,11 @@ def train_model(X, y):
         return model, metrics
 
     except Exception as e:
-        
         import traceback
         st.error("❌ Training failed!")
-        st.write("📛 Exception type:", type(e).__name__)
-        st.write("📛 Exception message:", str(e))
-        st.write("🧪 y type:", type(y))
-        st.write("🧪 y[:5]:", y[:5] if hasattr(y, '__getitem__') else "Not indexable")
-        st.write("🧪 y_pred shape:", y_pred.shape if 'y_pred' in locals() else "not defined")
-        st.write("🧪 y_true shape:", y_true.shape if 'y_true' in locals() else "not defined")
         st.text(traceback.format_exc())
         raise RuntimeError(f"Training failed: {e}")
+
     
 # ---- STREAMLIT UI ----
 st.set_page_config(page_title="HemoLink_AI – Reverse Modeling", layout="wide")
