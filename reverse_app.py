@@ -235,49 +235,48 @@ if not combined_df.empty:
                     st.info(f"✅ {gse} already exists")
 
         # Step 3: Train
-        st.markdown("## Step 3: Train Model")
-        try:
-            # ---- IN YOUR CODE, FIND THIS SECTION ----
+        # Step 3: Train
+st.markdown("## Step 3: Train Model")
+try:
     if human_gses:
-    result = load_multiple_datasets(human_gses)
-    if not result or len(result) != 2:
-        raise ValueError("Returned data is empty or malformed.")
-    human_df, labels = result  # <-- PROBLEM AREA STARTS HERE
+        result = load_multiple_datasets(human_gses)
+        if not result or len(result) != 2:
+            raise ValueError("Returned data is empty or malformed.")
+        human_df, labels = result
 
-    # === INSERT THESE FIXES RIGHT AFTER LOADING THE DATA ===
-    # 1. Ensure labels are numeric (0/1)
-    if not pd.api.types.is_numeric_dtype(labels):
-        st.warning("Labels are not numeric! Attempting conversion...")
-        labels = labels.map({"control": 0, "healthy": 0, "case": 1, "disease": 1}).astype(int)
-    
-    # 2. Align labels with feature matrix (X)
-    human_df = human_df.T  # <- Ensure samples are rows (adjust if your data differs)
-    common_samples = labels.index.intersection(human_df.index)
-    if len(common_samples) < len(labels):
-        st.warning(f"Dropping {len(labels) - len(common_samples)} mismatched samples")
-    labels = labels.loc[common_samples]
-    human_df = human_df.loc[common_samples]
+        # 1. Ensure labels are numeric (0/1)
+        if not pd.api.types.is_numeric_dtype(labels):
+            st.warning("Labels are not numeric! Attempting conversion...")
+            labels = labels.map({"control": 0, "healthy": 0, "case": 1, "disease": 1}).astype(int)
 
-    # 3. Convert labels to flat array
-    if isinstance(labels, pd.DataFrame):
-        labels = labels.squeeze()
-    y = labels.values.ravel()  # Final format for scikit-learn
+        # 2. Align labels with feature matrix
+        human_df = human_df.T
+        common_samples = labels.index.intersection(human_df.index)
+        if len(common_samples) < len(labels):
+            st.warning(f"Dropping {len(labels) - len(common_samples)} mismatched samples")
+        labels = labels.loc[common_samples]
+        human_df = human_df.loc[common_samples]
 
-    # Debug output (optional but recommended)
-    st.write("✅ Post-cleaning label summary:")
-    st.write(f"Unique values: {np.unique(y)}")  # Should be [0, 1]
-    st.write(f"Class counts: {pd.Series(y).value_counts().to_dict()}")
+        # 3. Convert labels to flat array
+        if isinstance(labels, pd.DataFrame):
+            labels = labels.squeeze()
+        y = labels.values.ravel()
 
- 
-                X, y = preprocess_dataset(human_df, labels)
-                model, metrics = train_model(X, y)
-                st.success("✅ Model training complete")
-                st.json(metrics)
-            else:
-                st.warning("⚠️ No human datasets selected.")
-        except Exception as e:
-            st.error(f"❌ Failed to train: {e}")
+        # Debug output
+        st.write("✅ Post-cleaning label summary:")
+        st.write(f"Unique values: {np.unique(y)}")
+        st.write(f"Class counts: {pd.Series(y).value_counts().to_dict()}")
 
+        X, y = preprocess_dataset(human_df, labels)
+        model, metrics = train_model(X, y)
+        st.success("✅ Model training complete")
+        st.json(metrics)
+    else:
+        st.warning("⚠️ No human datasets selected.")
+except Exception as e:
+    st.error(f"❌ Failed to train: {e}")
+
+           
         # Step 4: Evaluate
         st.markdown("## Step 4: Evaluate on Animal Datasets")
         try:
