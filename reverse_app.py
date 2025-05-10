@@ -118,7 +118,7 @@ def train_model(X, y):
     try:
         if isinstance(y, (pd.Series, pd.DataFrame)):
             y = y.values.ravel()
-        y = np.asarray(y).astype(int)
+            y = np.asarray(y).astype(int)
 
         if isinstance(X, pd.DataFrame):
             X = X.values
