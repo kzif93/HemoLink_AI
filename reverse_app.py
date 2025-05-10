@@ -19,42 +19,30 @@ from curated_sets import curated_registry
 Entrez.email = "your_email@example.com"
 KEYWORDS = ["stroke", "ischemia", "thrombosis", "vte", "dvt", "aps", "antiphospholipid", "control", "healthy", "normal"]
 
-# Monkey-patched load_multiple_datasets with debug
 from typing import List, Tuple
 def load_multiple_datasets(gse_list: List[str]) -> Tuple[pd.DataFrame, pd.Series]:
     dfs = []
     labels_list = []
-    print("[load] Starting to load datasets:", gse_list)
     for gse in gse_list:
         exp_path = os.path.join("data", f"{gse}_expression.csv")
         label_path = os.path.join("data", f"{gse}_labels.csv")
         if not os.path.exists(exp_path) or not os.path.exists(label_path):
-            print(f"[load] ❌ Missing files for {gse}")
             return None
         try:
-            print(f"[load] 📥 Loading expression: {exp_path}")
             df = pd.read_csv(exp_path, index_col=0).T
-            print(f"[load] ✅ Expression shape: {df.shape}")
         except Exception as e:
-            print(f"[load] ❌ Failed to load expression: {e}")
             return None
         try:
-            print(f"[load] 🏷️ Loading labels: {label_path}")
             labels = pd.read_csv(label_path, index_col=0).squeeze()
-            print(f"[load] ✅ Labels shape: {labels.shape}")
         except Exception as e:
-            print(f"[load] ❌ Failed to load labels: {e}")
             return None
         dfs.append(df)
         labels_list.append(labels)
     try:
         full_df = pd.concat(dfs, axis=1)
         full_labels = pd.concat(labels_list)
-        print(f"[load] ✅ Combined expression shape: {full_df.shape}")
-        print(f"[load] ✅ Combined labels shape: {full_labels.shape}")
         return full_df, full_labels
     except Exception as e:
-        print(f"[load] ❌ Failed to concat: {e}")
         return None
 
 def extract_keywords_from_query(query):
@@ -86,7 +74,6 @@ def smart_search_animal_geo(query, species=None, max_results=100):
             })
         return summaries
     except Exception as e:
-        print(f"[smart_search_animal_geo] Error: {e}")
         return []
 
 def download_and_prepare_dataset(gse):
@@ -113,10 +100,9 @@ def download_and_prepare_dataset(gse):
         if labels.nunique() == 2:
             labels.name = "label"
             labels.to_csv(label_out)
-            st.success("✅ Labels generated using improved sample title parsing.")
+            st.success("✅ Labels generated.")
             return out_path
         else:
-            st.warning("⚠️ Could not detect two classes. Label distribution: {}".format(labels.value_counts().to_dict()))
             labels = pd.Series([0] * df.shape[1], index=df.columns, name="label")
             labels.to_csv(label_out)
     except Exception as e:
@@ -130,11 +116,6 @@ def train_model(X, y):
     import streamlit as st
 
     try:
-        st.write("🧬 Training feature matrix (X):", X.shape)
-        st.write("🏷️ Labels (y):", y.shape)
-        st.write("🔍 y type:", type(y))
-        st.write("🔍 y unique values:", pd.Series(y).unique())
-
         if isinstance(y, (pd.Series, pd.DataFrame)):
             y = y.values.ravel()
         y = np.asarray(y).astype(int)
@@ -159,8 +140,7 @@ def train_model(X, y):
         st.error("❌ Training failed!")
         st.text(traceback.format_exc())
         raise RuntimeError(f"Training failed: {e}")
-
-    
+        
 # ---- STREAMLIT UI ----
 st.set_page_config(page_title="HemoLink_AI – Reverse Modeling", layout="wide")
 
