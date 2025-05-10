@@ -76,26 +76,6 @@ def download_and_prepare_dataset(gse):
 
     try:
         metadata = pd.DataFrame({gsm: sample.metadata for gsm, sample in geo.gsms.items()}).T
-        sample_titles = pd.Series({gsm: sample.metadata.get("title", [""])[0] for gsm, sample in geo.gsms.items()})
-        labels = sample_titles.str.lower().map(lambda x: 1 if "stroke" in x or "is" in x else 0)
-        if labels.nunique() == 2:
-            labels.name = "label"
-            labels.to_csv(label_out)
-            if st.checkbox("🔍 Preview labels before proceeding"):
-                st.dataframe(pd.DataFrame({"Sample": labels.index, "Label": labels.values}))
-                st.warning("These labels will be used for training.")
-                if st.checkbox("✏️ Manually edit labels?", key="edit_labels"):
-                    edited = st.data_editor(pd.DataFrame({"Sample": labels.index, "Label": labels.values}), num_rows="dynamic")
-                    if "Label" in edited.columns and edited["Label"].nunique() == 2:
-                        labels = edited.set_index("Sample")["Label"]
-                        labels.to_csv(label_out)
-                        st.success("✅ Updated labels saved.")
-                    else:
-                        st.error("❌ Edited labels must contain exactly two classes.")
-            st.success("✅ Labels successfully parsed from sample titles (row metadata).")
-            return out_path
-        else:
-            st.warning("⚠️ Only one class found in labels from sample titles.")
         st.write("🧠 Available metadata columns:", list(metadata.columns))
 
         # === CUSTOM LABEL LOGIC FOR GSE22255 ===
@@ -109,38 +89,20 @@ def download_and_prepare_dataset(gse):
                     if labels.nunique() == 2:
                         labels.name = "label"
                         labels.to_csv(label_out)
-            if st.checkbox("🔍 Preview labels before proceeding"):
-                st.dataframe(pd.DataFrame({"Sample": labels.index, "Label": labels.values}))
-                st.warning("These labels will be used for training.")
-                if st.checkbox("✏️ Manually edit labels?", key="edit_labels"):
-                    edited = st.data_editor(pd.DataFrame({"Sample": labels.index, "Label": labels.values}), num_rows="dynamic")
-                    if "Label" in edited.columns and edited["Label"].nunique() == 2:
-                        labels = edited.set_index("Sample")["Label"]
-                        labels.to_csv(label_out)
-                        st.success("✅ Updated labels saved.")
-                    else:
-                        st.error("❌ Edited labels must contain exactly two classes.")
                         st.success(f"✅ Labels generated from {colname}.")
                         return out_path
                 except Exception as e:
                     st.warning(f"⚠️ Could not label from {colname}: {e}")
 
         # Manual column selection if auto fails
+        selected_col = st.selectbox("🛠️ Select metadata column for labeling:", metadata.columns)
+        try:
+            values = metadata[selected_col].astype(str).str.lower()
+            labels = values.map(lambda x: 1 if "stroke" in x or "is" in x else 0)
             st.dataframe(pd.DataFrame({selected_col: values}).head(10))
             if labels.nunique() == 2:
                 labels.name = "label"
                 labels.to_csv(label_out)
-            if st.checkbox("🔍 Preview labels before proceeding"):
-                st.dataframe(pd.DataFrame({"Sample": labels.index, "Label": labels.values}))
-                st.warning("These labels will be used for training.")
-                if st.checkbox("✏️ Manually edit labels?", key="edit_labels"):
-                    edited = st.data_editor(pd.DataFrame({"Sample": labels.index, "Label": labels.values}), num_rows="dynamic")
-                    if "Label" in edited.columns and edited["Label"].nunique() == 2:
-                        labels = edited.set_index("Sample")["Label"]
-                        labels.to_csv(label_out)
-                        st.success("✅ Updated labels saved.")
-                    else:
-                        st.error("❌ Edited labels must contain exactly two classes.")
                 st.success(f"✅ Labels generated from selected column: {selected_col}")
                 return out_path
             else:
@@ -155,17 +117,6 @@ def download_and_prepare_dataset(gse):
                 if labels.nunique() == 2:
                     labels.name = "label"
                     labels.to_csv(label_out)
-            if st.checkbox("🔍 Preview labels before proceeding"):
-                st.dataframe(pd.DataFrame({"Sample": labels.index, "Label": labels.values}))
-                st.warning("These labels will be used for training.")
-                if st.checkbox("✏️ Manually edit labels?", key="edit_labels"):
-                    edited = st.data_editor(pd.DataFrame({"Sample": labels.index, "Label": labels.values}), num_rows="dynamic")
-                    if "Label" in edited.columns and edited["Label"].nunique() == 2:
-                        labels = edited.set_index("Sample")["Label"]
-                        labels.to_csv(label_out)
-                        st.success("✅ Updated labels saved.")
-                    else:
-                        st.error("❌ Edited labels must contain exactly two classes.")
                     print(f"[Auto-labeling] ✅ Used column: {col}")
                     print(f"[Label distribution] {labels.value_counts().to_dict()}")
                     success = True
@@ -182,17 +133,6 @@ def download_and_prepare_dataset(gse):
                 st.error(f"⚠️ Metadata preview failed: {preview_err}")
             labels = pd.Series([0] * df.shape[1], index=df.columns, name="label")
             labels.to_csv(label_out)
-            if st.checkbox("🔍 Preview labels before proceeding"):
-                st.dataframe(pd.DataFrame({"Sample": labels.index, "Label": labels.values}))
-                st.warning("These labels will be used for training.")
-                if st.checkbox("✏️ Manually edit labels?", key="edit_labels"):
-                    edited = st.data_editor(pd.DataFrame({"Sample": labels.index, "Label": labels.values}), num_rows="dynamic")
-                    if "Label" in edited.columns and edited["Label"].nunique() == 2:
-                        labels = edited.set_index("Sample")["Label"]
-                        labels.to_csv(label_out)
-                        st.success("✅ Updated labels saved.")
-                    else:
-                        st.error("❌ Edited labels must contain exactly two classes.")
     except Exception as e:
         print(f"[Auto-labeling failed] ❌ {e}")
 
