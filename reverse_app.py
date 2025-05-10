@@ -10,28 +10,26 @@ from datetime import datetime
 sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
 
 from preprocessing import preprocess_dataset
-from model_training import train_model
 from prediction import test_model_on_dataset
 from explainability import extract_shap_values, compare_shap_vectors
-from reverse_modeling import list_animal_datasets, load_multiple_datasets
+from reverse_modeling import list_animal_datasets
+from curated_sets import curated_registry
 
-# Monkey patch load_multiple_datasets to transpose dataframes
-import pandas as pd
+Entrez.email = "your_email@example.com"
+KEYWORDS = ["stroke", "ischemia", "thrombosis", "vte", "dvt", "aps", "antiphospholipid", "control", "healthy", "normal"]
+
+# Monkey-patched load_multiple_datasets with debug
 from typing import List, Tuple
-
 def load_multiple_datasets(gse_list: List[str]) -> Tuple[pd.DataFrame, pd.Series]:
     dfs = []
     labels_list = []
     print("[load] Starting to load datasets:", gse_list)
-
     for gse in gse_list:
         exp_path = os.path.join("data", f"{gse}_expression.csv")
         label_path = os.path.join("data", f"{gse}_labels.csv")
-
         if not os.path.exists(exp_path) or not os.path.exists(label_path):
             print(f"[load] ❌ Missing files for {gse}")
             return None
-
         try:
             print(f"[load] 📥 Loading expression: {exp_path}")
             df = pd.read_csv(exp_path, index_col=0).T
@@ -39,7 +37,6 @@ def load_multiple_datasets(gse_list: List[str]) -> Tuple[pd.DataFrame, pd.Series
         except Exception as e:
             print(f"[load] ❌ Failed to load expression: {e}")
             return None
-
         try:
             print(f"[load] 🏷️ Loading labels: {label_path}")
             labels = pd.read_csv(label_path, index_col=0).squeeze()
@@ -47,10 +44,8 @@ def load_multiple_datasets(gse_list: List[str]) -> Tuple[pd.DataFrame, pd.Series
         except Exception as e:
             print(f"[load] ❌ Failed to load labels: {e}")
             return None
-
         dfs.append(df)
         labels_list.append(labels)
-
     try:
         full_df = pd.concat(dfs, axis=1)
         full_labels = pd.concat(labels_list)
@@ -60,12 +55,6 @@ def load_multiple_datasets(gse_list: List[str]) -> Tuple[pd.DataFrame, pd.Series
     except Exception as e:
         print(f"[load] ❌ Failed to concat: {e}")
         return None
-
-from curated_sets import curated_registry
-
-Entrez.email = "your_email@example.com"
-
-KEYWORDS = ["stroke", "ischemia", "thrombosis", "vte", "dvt", "aps", "antiphospholipid", "control", "healthy", "normal"]
 
 def extract_keywords_from_query(query):
     return [w.strip().lower() for w in re.split(r"[\s,]+", query)]
@@ -102,30 +91,24 @@ def smart_search_animal_geo(query, species=None, max_results=100):
 def download_and_prepare_dataset(gse):
     import GEOparse
     from probe_mapper import download_platform_annotation, map_probes_to_genes
-
     out_path = os.path.join("data", f"{gse}_expression.csv")
     label_out = os.path.join("data", f"{gse}_labels.csv")
     if os.path.exists(out_path):
         return out_path
-
     geo = GEOparse.get_GEO(geo=gse, destdir="data", annotate_gpl=True)
     gpl_name = list(geo.gpls.keys())[0] if geo.gpls else None
-
     df = pd.DataFrame({gsm: sample.table.set_index("ID_REF")["VALUE"] for gsm, sample in geo.gsms.items()})
     df.to_csv(out_path)
-
     if df.index.str.endswith("_at").sum() / len(df.index) > 0.5 and gpl_name:
         gpl_path = download_platform_annotation(gse)
         mapped = map_probes_to_genes(out_path, gpl_path)
-        mapped = mapped.T  # transpose so rows = samples, columns = genes
-        mapped.index = df.columns  # assign GSM sample IDs to rows
+        mapped = mapped.T
+        mapped.index = df.columns
         mapped.index.name = "Sample"
         mapped.to_csv(out_path)
-
     try:
         sample_titles = pd.Series({gsm: sample.metadata.get("title", [""])[0] for gsm, sample in geo.gsms.items()})
         labels = sample_titles.str.lower().map(lambda x: 1 if "pbmcs_is" in x else (0 if "pbmcs_control" in x else None)).dropna()
-
         if labels.nunique() == 2:
             labels.name = "label"
             labels.to_csv(label_out)
@@ -137,8 +120,48 @@ def download_and_prepare_dataset(gse):
             labels.to_csv(label_out)
     except Exception as e:
         st.error(f"❌ Labeling failed: {e}")
-
     return out_path
+
+
+def train_model(X, y):
+    import pandas as pd
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.metrics import roc_auc_score, classification_report
+    from sklearn.utils.multiclass import unique_labels
+    import streamlit as st
+
+    try:
+        st.write("🧬 Training feature matrix (X):", X.shape)
+        st.write("🏷️ Labels (y):", y.shape)
+        st.write("🔍 y type:", type(y))
+        st.write("🔍 y unique values:", pd.Series(y).unique())
+
+        if isinstance(y, pd.DataFrame):
+            y = y.iloc[:, 0]
+        y = y.values.ravel() if hasattr(y, 'values') else y
+        y = y.astype(int)
+
+        model = RandomForestClassifier(n_estimators=100, random_state=42)
+        model.fit(X, y)
+
+        preds = model.predict_proba(X)[:, 1]
+        auc = roc_auc_score(y, preds)
+
+        y_true = y
+        y_pred = (preds > 0.5).astype(int)
+        labels = unique_labels(y_true, y_pred)
+
+        report = classification_report(y_true, y_pred, labels=labels, output_dict=True)
+
+        metrics = {
+            "roc_auc": round(auc, 4),
+            "classification_report": report,
+        }
+        return model, metrics
+
+    except Exception as e:
+        raise RuntimeError(f"Training failed: {e}")
+
 
 # ---- STREAMLIT UI ----
 st.set_page_config(page_title="HemoLink_AI – Reverse Modeling", layout="wide")
