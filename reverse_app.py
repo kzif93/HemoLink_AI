@@ -70,9 +70,9 @@ def download_and_prepare_dataset(gse):
     if df.index.str.endswith("_at").sum() / len(df.index) > 0.5 and gpl_name:
         gpl_path = download_platform_annotation(gse)
         mapped = map_probes_to_genes(out_path, gpl_path)
-        mapped = mapped.T
-        mapped.columns = list(df.columns)  # Restore GSM sample IDs as columns
-        mapped.index.name = "GeneSymbol"
+        mapped = mapped.T  # transpose so rows = samples, columns = genes
+        mapped.index = df.columns  # assign GSM sample IDs to rows
+        mapped.index.name = "Sample"
         mapped.to_csv(out_path)
 
     try:
