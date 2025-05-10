@@ -116,9 +116,14 @@ def train_model(X, y):
     import streamlit as st
 
     try:
+        # Convert y to numpy array if it's a pandas Series/DataFrame
         if isinstance(y, (pd.Series, pd.DataFrame)):
             y = y.values.ravel()
         y = np.asarray(y).astype(int)
+
+        # Ensure X is numpy array if it's a DataFrame
+        if isinstance(X, pd.DataFrame):
+            X = X.values
 
         model = RandomForestClassifier(n_estimators=100, random_state=42)
         model.fit(X, y)
