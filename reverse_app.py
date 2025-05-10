@@ -25,31 +25,6 @@ def extract_keywords_from_query(query):
     return [w.strip().lower() for w in re.split(r"[\s,]+", query)]
 
 def smart_search_animal_geo(query, species=None, max_results=100):
-    try:
-        keywords = extract_keywords_from_query(query)
-        search_term = f"{' OR '.join(keywords)} AND (gse[ETYP] OR gds[ETYP])"
-        if species:
-            search_term += f" AND {species}"
-        handle = Entrez.esearch(db="gds", term=search_term, retmax=max_results)
-        record = Entrez.read(handle)
-        ids = record["IdList"]
-        summaries = []
-        for gds_id in ids:
-            summary = Entrez.esummary(db="gds", id=gds_id)
-            docsum = Entrez.read(summary)[0]
-            summaries.append({
-                "GSE": docsum.get("Accession", "?"),
-                "Title": docsum.get("title", "?"),
-                "Description": docsum.get("summary", "?"),
-                "Samples": docsum.get("n_samples", "?"),
-                "Platform": docsum.get("gpl", "?"),
-                "Organism": docsum.get("taxon", "?"),
-                "ReleaseDate": docsum.get("PDAT", "?"),
-                "Score": 0,
-                "Tag": "GEO"
-            })
-        return summaries
-    except Exception as e:
         print(f"[smart_search_animal_geo] Error: {e}")
         return []
 
@@ -74,34 +49,13 @@ def download_and_prepare_dataset(gse):
         mapped = mapped.T
         mapped.to_csv(out_path)
 
-    try:
-        metadata = pd.DataFrame({gsm: sample.metadata for gsm, sample in geo.gsms.items()}).T
-        sample_titles = pd.Series({gsm: sample.metadata.get("title", [""])[0] for gsm, sample in geo.gsms.items()})
-        labels = sample_titles.str.lower().map(lambda x: 1 if "stroke" in x or "is" in x else 0)
-        if labels.nunique() == 2:
-            labels.name = "label"
-            labels.to_csv(label_out)
     # === Safe preview/edit block ===
-    try:
-        if st.checkbox("🔍 Preview labels before proceeding"):
-            st.dataframe(pd.DataFrame({"Sample": labels.index, "Label": labels.values}))
-            st.warning("These labels will be used for training.")
-            if st.checkbox("✏️ Manually edit labels?", key="edit_labels"):
-                edited = st.data_editor(
-                    pd.DataFrame({"Sample": labels.index, "Label": labels.values}),
-                    num_rows="dynamic"
-                )
-                if "Label" in edited.columns and edited["Label"].nunique() == 2:
-                    labels = edited.set_index("Sample")["Label"]
-                    labels.to_csv(label_out)
                     st.success("✅ Updated labels saved.")
                 else:
                     st.error("❌ Edited labels must contain exactly two classes.")
     except Exception as e:
         st.error(f"❌ Error during label preview/edit: {e}")
         # === OPTIONAL LABEL PREVIEW UI ===
-        try:
-                        labels.to_csv(label_out)
                         st.success("✅ Updated labels saved.")
                     else:
                         st.error("❌ Edited labels must contain exactly two classes.")
@@ -112,6 +66,21 @@ def download_and_prepare_dataset(gse):
                 if "Label" in edited.columns and edited["Label"].nunique() == 2:
                     labels = edited.set_index("Sample")["Label"]
                     labels.to_csv(label_out)
+    # === Label Preview and Optional Manual Edit ===
+    if st.checkbox("🔍 Preview labels before proceeding"):
+        st.dataframe(pd.DataFrame({"Sample": labels.index, "Label": labels.values}))
+        st.warning("These labels will be used for training.")
+        if st.checkbox("✏️ Manually edit labels?", key="edit_labels"):
+            edited = st.data_editor(
+                pd.DataFrame({"Sample": labels.index, "Label": labels.values}),
+                num_rows="dynamic"
+            )
+            if "Label" in edited.columns and edited["Label"].nunique() == 2:
+                labels = edited.set_index("Sample")["Label"]
+                labels.to_csv(label_out)
+                st.success("✅ Updated labels saved.")
+            else:
+                st.error("❌ Edited labels must contain exactly two classes.")
                     st.success("✅ Updated labels saved.")
                 else:
                     st.error("❌ Edited labels must contain exactly two classes.")
@@ -135,15 +104,7 @@ def download_and_prepare_dataset(gse):
         label_found = False
         for colname in ["title", "characteristics_ch1"]:
             if colname in metadata.columns:
-                try:
-                    values = metadata[colname].astype(str).str.lower()
-                    labels = values.map(lambda x: 1 if "stroke" in x or "is" in x else 0)
-                    if labels.nunique() == 2:
-                        labels.name = "label"
-                        labels.to_csv(label_out)
         # === OPTIONAL LABEL PREVIEW UI ===
-        try:
-                        labels.to_csv(label_out)
                         st.success("✅ Updated labels saved.")
                     else:
                         st.error("❌ Edited labels must contain exactly two classes.")
@@ -176,8 +137,6 @@ def download_and_prepare_dataset(gse):
                 labels.name = "label"
                 labels.to_csv(label_out)
         # === OPTIONAL LABEL PREVIEW UI ===
-        try:
-                        labels.to_csv(label_out)
                         st.success("✅ Updated labels saved.")
                     else:
                         st.error("❌ Edited labels must contain exactly two classes.")
@@ -208,15 +167,7 @@ def download_and_prepare_dataset(gse):
             st.error(f"❌ Failed to label from selected column: {e}")
         success = False
         for col in metadata.columns:
-            try:
-                values = metadata[col].astype(str).str.lower()
-                labels = values.map(lambda x: 1 if any(k in x for k in KEYWORDS) else 0)
-                if labels.nunique() == 2:
-                    labels.name = "label"
-                    labels.to_csv(label_out)
         # === OPTIONAL LABEL PREVIEW UI ===
-        try:
-                        labels.to_csv(label_out)
                         st.success("✅ Updated labels saved.")
                     else:
                         st.error("❌ Edited labels must contain exactly two classes.")
@@ -248,15 +199,10 @@ def download_and_prepare_dataset(gse):
 
         if not success:
             st.warning("⚠️ Auto-labeling failed. Assigning default label 0 to all.")
-            try:
-                st.warning("⚠️ Showing metadata preview (first 5 columns × 10 samples):")
-            except Exception as preview_err:
                 st.error(f"⚠️ Metadata preview failed: {preview_err}")
             labels = pd.Series([0] * df.shape[1], index=df.columns, name="label")
             labels.to_csv(label_out)
         # === OPTIONAL LABEL PREVIEW UI ===
-        try:
-                        labels.to_csv(label_out)
                         st.success("✅ Updated labels saved.")
                     else:
                         st.error("❌ Edited labels must contain exactly two classes.")
@@ -311,35 +257,12 @@ else:
 st.markdown("### 📦 Curated Datasets")
 curated_df = pd.DataFrame()
 if selected_domain:
-    try:
-        curated = curated_registry[selected_domain]
-        curated_df = pd.DataFrame(curated)
-        curated_df.columns = curated_df.columns.astype(str).str.strip()
-        if "Organism" in curated_df.columns:
-            col1, col2 = st.columns(2)
-            with col1:
-                st.markdown("**Curated Animal Datasets**")
-            with col2:
-                st.markdown("**Curated Human Datasets**")
-    except Exception as e:
         st.error(f"❌ Failed to load curated datasets: {e}")
 
 # Smart search
 st.markdown("### 🔍 Smart GEO Dataset Discovery")
 search_results_df = pd.DataFrame()
 if st.button("Run smart search"):
-    try:
-        with st.spinner("Searching GEO..."):
-            results = smart_search_animal_geo(query, species_input)
-        search_results_df = pd.DataFrame(results)
-        if not search_results_df.empty:
-            if "Organism" in search_results_df.columns:
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.markdown("**Found Animal Datasets**")
-                with col2:
-                    st.markdown("**Found Human Datasets**")
-    except Exception as e:
         st.error(f"Search failed: {e}")
 
 # Step 2: Dataset selection
@@ -359,61 +282,16 @@ if not combined_df.empty:
             for gse in selected_gses:
                 exp_path = os.path.join("data", f"{gse}_expression.csv")
                 if not os.path.exists(exp_path):
-                    try:
-                        st.info(f"📥 Downloading {gse}...")
-                        download_and_prepare_dataset(gse)
-                        st.success(f"✅ {gse} downloaded")
-                    except Exception as e:
                         st.error(f"❌ Failed to download {gse}: {e}")
                 else:
                     st.info(f"✅ {gse} already exists")
 
         # Step 3: Train
         st.markdown("## Step 3: Train Model")
-        try:
-            if human_gses:
-                result = load_multiple_datasets(human_gses)
-                if not result or len(result) != 2:
-                    raise ValueError("Returned data is empty or malformed.")
-                human_df, labels = result
-                if human_df.empty or labels.empty:
-                    raise ValueError("Loaded data or labels are empty.")
-                if isinstance(labels, pd.DataFrame):
-                    labels = labels.iloc[:, 0]
-
-                labels.index = labels.index.astype(str).str.strip()
-                human_df.columns = human_df.columns.astype(str).str.strip()
-                unmatched = [idx for idx in labels.index if idx not in human_df.columns]
-                if unmatched:
-                    st.warning(f"⚠️ Unmatched label samples: {unmatched[:5]}... (+{len(unmatched)-5} more)" if len(unmatched) > 5 else f"⚠️ Unmatched label samples: {unmatched}")
-                labels = labels[labels.index.isin(human_df.columns)]
-                human_df = human_df[labels.index]
-
-                st.warning(f"⚠️ Label distribution: {labels.value_counts().to_dict()}")
-                if labels.nunique() < 2:
-                    raise ValueError("Only one class found in labels.")
-
-                X, y = preprocess_dataset(human_df, labels)
-                model, metrics = train_model(X, y)
-                st.success("✅ Model training complete")
-                st.json(metrics)
-            else:
-                st.warning("⚠️ No human datasets selected.")
-        except Exception as e:
             st.error(f"❌ Failed to train: {e}")
 
         # Step 4: Evaluate
         st.markdown("## Step 4: Evaluate on Animal Datasets")
-        try:
-            if animal_gses:
-                result = load_multiple_datasets(animal_gses)
-                if not result or len(result) != 2:
-                    raise ValueError("Returned data is empty or malformed.")
-                eval_dfs, meta = result
-                results = test_model_on_dataset(model, eval_dfs, meta)
-            else:
-                st.warning("⚠️ No animal datasets selected.")
-        except Exception as e:
             st.error(f"❌ Evaluation failed: {e}")
 else:
     st.info("ℹ️ No datasets available to select.")
