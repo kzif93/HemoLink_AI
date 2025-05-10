@@ -17,11 +17,9 @@ from explainability import extract_shap_values, compare_shap_vectors
 from reverse_modeling import list_animal_datasets, load_multiple_datasets
 from curated_sets import curated_registry
 
-# ---- SMART GEO SEARCH ----
 Entrez.email = "your_email@example.com"
 
 KEYWORDS = ["stroke", "ischemia", "thrombosis", "vte", "dvt", "aps", "antiphospholipid", "control", "healthy", "normal"]
-TISSUE_HINTS = ["brain", "cortex", "hippocampus", "vein", "blood"]
 
 def extract_keywords_from_query(query):
     return [w.strip().lower() for w in re.split(r"[\s,]+", query)]
@@ -35,7 +33,6 @@ def smart_search_animal_geo(query, species=None, max_results=100):
         handle = Entrez.esearch(db="gds", term=search_term, retmax=max_results)
         record = Entrez.read(handle)
         ids = record["IdList"]
-
         summaries = []
         for gds_id in ids:
             summary = Entrez.esummary(db="gds", id=gds_id)
@@ -71,9 +68,7 @@ def download_and_prepare_dataset(gse):
     df = pd.DataFrame({gsm: sample.table.set_index("ID_REF")["VALUE"] for gsm, sample in geo.gsms.items()})
     df.to_csv(out_path)
 
-    probe_ids = df.index.to_series()
-    looks_like_probes = probe_ids.str.endswith("_at").sum() / len(probe_ids) > 0.5
-    if looks_like_probes and gpl_name:
+    if df.index.str.endswith("_at").sum() / len(df.index) > 0.5 and gpl_name:
         gpl_path = download_platform_annotation(gse)
         mapped = map_probes_to_genes(out_path, gpl_path)
         mapped = mapped.T
@@ -82,10 +77,24 @@ def download_and_prepare_dataset(gse):
     try:
         metadata = pd.DataFrame({gsm: sample.metadata for gsm, sample in geo.gsms.items()}).T
 
-        # === TEMPORARY DEBUG for GSE22255 ===
+        # === CUSTOM LABEL LOGIC FOR GSE22255 ===
         if gse.lower() == "gse22255":
-            st.warning("🧪 DEBUG: Showing metadata preview for GSE22255")
-            st.dataframe(metadata.iloc[:, :10].head(10))
+            try:
+                title_col = metadata.columns[1]
+                values = metadata[title_col].astype(str)
+                labels = values.map(lambda x: 1 if "stroke" in x.lower() or "is" in x.lower() else 0)
+                if labels.nunique() == 2:
+                    labels.name = "label"
+                    labels.to_csv(label_out)
+                    st.success("✅ GSE22255 labeled successfully using title column.")
+                    return out_path
+                else:
+                    st.warning("⚠️ GSE22255 labels only contain one class.")
+                    st.dataframe(metadata[[title_col]].head(10))
+            except Exception as e:
+                st.error(f"❌ Failed custom labeling for GSE22255: {e}")
+
+        # Default fallback logic
         success = False
         for col in metadata.columns:
             try:
@@ -98,8 +107,6 @@ def download_and_prepare_dataset(gse):
                     print(f"[Label distribution] {labels.value_counts().to_dict()}")
                     success = True
                     break
-                else:
-                    print(f"[Auto-labeling] ❌ Column {col} has only one class.")
             except Exception:
                 continue
 
