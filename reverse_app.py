@@ -75,15 +75,15 @@ def download_and_prepare_dataset(gse):
 
     try:
         sample_titles = pd.Series({gsm: sample.metadata.get("title", [""])[0] for gsm, sample in geo.gsms.items()})
-        labels = sample_titles.str.lower().map(lambda x: 1 if "pbmcs_is" in x else 0)
+        labels = sample_titles.str.lower().map(lambda x: 1 if "pbmcs_is" in x else (0 if "pbmcs_control" in x else None)).dropna()
 
         if labels.nunique() == 2:
             labels.name = "label"
             labels.to_csv(label_out)
-            st.success("✅ Labels generated using sample titles.")
+            st.success("✅ Labels generated using improved sample title parsing.")
             return out_path
         else:
-            st.warning("⚠️ Only one class detected from sample titles. Defaulting to zeros.")
+            st.warning("⚠️ Could not detect two classes. Label distribution: {}".format(labels.value_counts().to_dict()))
             labels = pd.Series([0] * df.shape[1], index=df.columns, name="label")
             labels.to_csv(label_out)
     except Exception as e:
