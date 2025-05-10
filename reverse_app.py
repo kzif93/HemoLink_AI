@@ -14,6 +14,26 @@ from model_training import train_model
 from prediction import test_model_on_dataset
 from explainability import extract_shap_values, compare_shap_vectors
 from reverse_modeling import list_animal_datasets, load_multiple_datasets
+
+# Monkey patch load_multiple_datasets to transpose dataframes
+import pandas as pd
+from typing import List, Tuple
+
+def load_multiple_datasets(gse_list: List[str]) -> Tuple[pd.DataFrame, pd.Series]:
+    dfs = []
+    labels_list = []
+    for gse in gse_list:
+        exp_path = os.path.join("data", f"{gse}_expression.csv")
+        label_path = os.path.join("data", f"{gse}_labels.csv")
+        if not os.path.exists(exp_path) or not os.path.exists(label_path):
+            return None
+        df = pd.read_csv(exp_path, index_col=0).T  # Transpose to genes x samples
+        labels = pd.read_csv(label_path, index_col=0).squeeze()
+        dfs.append(df)
+        labels_list.append(labels)
+    full_df = pd.concat(dfs, axis=1)
+    full_labels = pd.concat(labels_list)
+    return full_df, full_labels
 from curated_sets import curated_registry
 
 Entrez.email = "your_email@example.com"
