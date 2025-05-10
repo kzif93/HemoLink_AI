@@ -81,7 +81,7 @@ def download_and_prepare_dataset(gse):
         # === CUSTOM LABEL LOGIC FOR GSE22255 ===
         if gse.lower() == "gse22255":
             try:
-                title_col = metadata.columns[1]
+                values = metadata["title"].astype(str)
                 values = metadata[title_col].astype(str)
                 labels = values.map(lambda x: 1 if "stroke" in x.lower() or "is" in x.lower() else 0)
                 if labels.nunique() == 2:
