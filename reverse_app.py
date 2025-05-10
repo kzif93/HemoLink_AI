@@ -112,19 +112,16 @@ def download_and_prepare_dataset(gse):
 def train_model(X, y):
     from sklearn.ensemble import RandomForestClassifier
     from sklearn.metrics import roc_auc_score, classification_report
-    import streamlit as st
     import numpy as np
+    import streamlit as st
 
     try:
-        st.write("🧬 Training feature matrix (X):", X.shape)
-        st.write("🏷️ Labels (y):", y.shape)
-        st.write("🔍 y type:", type(y))
-        st.write("🔍 y unique values:", pd.Series(y).unique())
-
-        if isinstance(y, pd.Series) or isinstance(y, pd.DataFrame):
+        if isinstance(y, (pd.Series, pd.DataFrame)):
             y = y.values.ravel()
-        
         y = np.asarray(y).astype(int)
+
+        if isinstance(X, pd.DataFrame):
+            X = X.values
 
         model = RandomForestClassifier(n_estimators=100, random_state=42)
         model.fit(X, y)
@@ -132,10 +129,13 @@ def train_model(X, y):
         preds = model.predict_proba(X)[:, 1]
         auc = roc_auc_score(y, preds)
 
-        y_true = y
         y_pred = (preds > 0.5).astype(int)
 
-        report = classification_report(y_true, y_pred, output_dict=True)
+        # FORCE y and y_pred to be flat arrays
+        y = np.array(y).flatten()
+        y_pred = np.array(y_pred).flatten()
+
+        report = classification_report(y, y_pred, output_dict=True)
 
         metrics = {
             "roc_auc": round(auc, 4),
@@ -148,7 +148,6 @@ def train_model(X, y):
         st.error("❌ Training failed!")
         st.text(traceback.format_exc())
         raise RuntimeError(f"Training failed: {e}")
-        
 # ---- STREAMLIT UI ----
 st.set_page_config(page_title="HemoLink_AI – Reverse Modeling", layout="wide")
 
