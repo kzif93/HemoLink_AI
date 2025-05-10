@@ -152,6 +152,11 @@ def train_model(X, y):
         y_pred = (preds > 0.5).astype(int)
         labels = unique_labels(y_true, y_pred)
 
+        
+        st.write("DEBUG y_true type:", type(y_true))
+        st.write("DEBUG y_pred type:", type(y_pred))
+        st.write("DEBUG y_true[0]:", y_true[0])
+        st.write("DEBUG y_pred[0]:", y_pred[0])
         report = classification_report(y_true, y_pred, output_dict=True)
 
         metrics = {
