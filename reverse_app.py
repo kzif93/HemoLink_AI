@@ -22,18 +22,45 @@ from typing import List, Tuple
 def load_multiple_datasets(gse_list: List[str]) -> Tuple[pd.DataFrame, pd.Series]:
     dfs = []
     labels_list = []
+    print("[load] Starting to load datasets:", gse_list)
+
     for gse in gse_list:
         exp_path = os.path.join("data", f"{gse}_expression.csv")
         label_path = os.path.join("data", f"{gse}_labels.csv")
+
         if not os.path.exists(exp_path) or not os.path.exists(label_path):
+            print(f"[load] ❌ Missing files for {gse}")
             return None
-        df = pd.read_csv(exp_path, index_col=0).T  # Transpose to genes x samples
-        labels = pd.read_csv(label_path, index_col=0).squeeze()
+
+        try:
+            print(f"[load] 📥 Loading expression: {exp_path}")
+            df = pd.read_csv(exp_path, index_col=0).T
+            print(f"[load] ✅ Expression shape: {df.shape}")
+        except Exception as e:
+            print(f"[load] ❌ Failed to load expression: {e}")
+            return None
+
+        try:
+            print(f"[load] 🏷️ Loading labels: {label_path}")
+            labels = pd.read_csv(label_path, index_col=0).squeeze()
+            print(f"[load] ✅ Labels shape: {labels.shape}")
+        except Exception as e:
+            print(f"[load] ❌ Failed to load labels: {e}")
+            return None
+
         dfs.append(df)
         labels_list.append(labels)
-    full_df = pd.concat(dfs, axis=1)
-    full_labels = pd.concat(labels_list)
-    return full_df, full_labels
+
+    try:
+        full_df = pd.concat(dfs, axis=1)
+        full_labels = pd.concat(labels_list)
+        print(f"[load] ✅ Combined expression shape: {full_df.shape}")
+        print(f"[load] ✅ Combined labels shape: {full_labels.shape}")
+        return full_df, full_labels
+    except Exception as e:
+        print(f"[load] ❌ Failed to concat: {e}")
+        return None
+
 from curated_sets import curated_registry
 
 Entrez.email = "your_email@example.com"
