@@ -278,7 +278,7 @@ except Exception as e:
 
            
         # Step 4: Evaluate
-        st.markdown("## Step 4: Evaluate on Animal Datasets")
+    st.markdown("## Step 4: Evaluate on Animal Datasets")
         try:
             if animal_gses:
                 result = load_multiple_datasets(animal_gses)
