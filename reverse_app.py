@@ -79,23 +79,36 @@ def download_and_prepare_dataset(gse):
         st.write("🧠 Available metadata columns:", list(metadata.columns))
 
         # === CUSTOM LABEL LOGIC FOR GSE22255 ===
-        if gse.lower() == "gse22255":
-            try:
-                values = metadata["title"].astype(str)
-                values = metadata[title_col].astype(str)
-                labels = values.map(lambda x: 1 if "stroke" in x.lower() or "is" in x.lower() else 0)
-                if labels.nunique() == 2:
-                    labels.name = "label"
-                    labels.to_csv(label_out)
-                    st.success("✅ GSE22255 labeled successfully using title column.")
-                    return out_path
-                else:
-                    st.warning("⚠️ GSE22255 labels only contain one class.")
-                    st.dataframe(metadata[[title_col]].head(10))
-            except Exception as e:
-                st.error(f"❌ Failed custom labeling for GSE22255: {e}")
+        # === SMART LABELING ===
+        label_found = False
+        for colname in ["title", "characteristics_ch1"]:
+            if colname in metadata.columns:
+                try:
+                    values = metadata[colname].astype(str).str.lower()
+                    labels = values.map(lambda x: 1 if "stroke" in x or "is" in x else 0)
+                    if labels.nunique() == 2:
+                        labels.name = "label"
+                        labels.to_csv(label_out)
+                        st.success(f"✅ Labels generated from {colname}.")
+                        return out_path
+                except Exception as e:
+                    st.warning(f"⚠️ Could not label from {colname}: {e}")
 
-        # Default fallback logic
+        # Manual column selection if auto fails
+        selected_col = st.selectbox("🛠️ Select metadata column for labeling:", metadata.columns)
+        try:
+            values = metadata[selected_col].astype(str).str.lower()
+            labels = values.map(lambda x: 1 if "stroke" in x or "is" in x else 0)
+            st.dataframe(pd.DataFrame({selected_col: values}).head(10))
+            if labels.nunique() == 2:
+                labels.name = "label"
+                labels.to_csv(label_out)
+                st.success(f"✅ Labels generated from selected column: {selected_col}")
+                return out_path
+            else:
+                st.warning("⚠️ Still only one class found.")
+        except Exception as e:
+            st.error(f"❌ Failed to label from selected column: {e}")
         success = False
         for col in metadata.columns:
             try:
