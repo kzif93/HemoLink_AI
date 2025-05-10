@@ -108,31 +108,32 @@ def download_and_prepare_dataset(gse):
     except Exception as e:
         st.error(f"❌ Labeling failed: {e}")
     return out_path
-
 def train_model(X, y):
-    import numpy as np
     from sklearn.ensemble import RandomForestClassifier
     from sklearn.metrics import roc_auc_score, classification_report
     import streamlit as st
+    import numpy as np
 
     try:
-        # Convert y to numpy array if it's a pandas Series/DataFrame
-        if isinstance(y, (pd.Series, pd.DataFrame)):
+        st.write("🧬 Training feature matrix (X):", X.shape)
+        st.write("🏷️ Labels (y):", y.shape)
+        st.write("🔍 y type:", type(y))
+        st.write("🔍 y unique values:", pd.Series(y).unique())
+
+        if isinstance(y, pd.Series) or isinstance(y, pd.DataFrame):
             y = y.values.ravel()
         y = np.asarray(y).astype(int)
-
-        # Ensure X is numpy array if it's a DataFrame
-        if isinstance(X, pd.DataFrame):
-            X = X.values
 
         model = RandomForestClassifier(n_estimators=100, random_state=42)
         model.fit(X, y)
 
         preds = model.predict_proba(X)[:, 1]
         auc = roc_auc_score(y, preds)
+
+        y_true = y
         y_pred = (preds > 0.5).astype(int)
 
-        report = classification_report(y, y_pred, output_dict=True)
+        report = classification_report(y_true, y_pred, output_dict=True)
 
         metrics = {
             "roc_auc": round(auc, 4),
