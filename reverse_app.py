@@ -81,8 +81,18 @@ def download_and_prepare_dataset(gse):
         if labels.nunique() == 2:
             labels.name = "label"
             labels.to_csv(label_out)
-            if st.checkbox("🔍 Preview labels before proceeding"):
-                st.dataframe(pd.DataFrame({"Sample": labels.index, "Label": labels.values}))
+        # === OPTIONAL LABEL PREVIEW UI ===
+        if st.checkbox("🔍 Preview labels before proceeding"):
+            st.dataframe(pd.DataFrame({"Sample": labels.index, "Label": labels.values}))
+            st.warning("These labels will be used for training.")
+            if st.checkbox("✏️ Manually edit labels?", key="edit_labels"):
+                edited = st.data_editor(pd.DataFrame({"Sample": labels.index, "Label": labels.values}), num_rows="dynamic")
+                if "Label" in edited.columns and edited["Label"].nunique() == 2:
+                    labels = edited.set_index("Sample")["Label"]
+                    labels.to_csv(label_out)
+                    st.success("✅ Updated labels saved.")
+                else:
+                    st.error("❌ Edited labels must contain exactly two classes.")
                 st.warning("These labels will be used for training.")
                 if st.checkbox("✏️ Manually edit labels?", key="edit_labels"):
                     edited = st.data_editor(pd.DataFrame({"Sample": labels.index, "Label": labels.values}), num_rows="dynamic")
@@ -109,8 +119,18 @@ def download_and_prepare_dataset(gse):
                     if labels.nunique() == 2:
                         labels.name = "label"
                         labels.to_csv(label_out)
-            if st.checkbox("🔍 Preview labels before proceeding"):
-                st.dataframe(pd.DataFrame({"Sample": labels.index, "Label": labels.values}))
+        # === OPTIONAL LABEL PREVIEW UI ===
+        if st.checkbox("🔍 Preview labels before proceeding"):
+            st.dataframe(pd.DataFrame({"Sample": labels.index, "Label": labels.values}))
+            st.warning("These labels will be used for training.")
+            if st.checkbox("✏️ Manually edit labels?", key="edit_labels"):
+                edited = st.data_editor(pd.DataFrame({"Sample": labels.index, "Label": labels.values}), num_rows="dynamic")
+                if "Label" in edited.columns and edited["Label"].nunique() == 2:
+                    labels = edited.set_index("Sample")["Label"]
+                    labels.to_csv(label_out)
+                    st.success("✅ Updated labels saved.")
+                else:
+                    st.error("❌ Edited labels must contain exactly two classes.")
                 st.warning("These labels will be used for training.")
                 if st.checkbox("✏️ Manually edit labels?", key="edit_labels"):
                     edited = st.data_editor(pd.DataFrame({"Sample": labels.index, "Label": labels.values}), num_rows="dynamic")
@@ -126,12 +146,21 @@ def download_and_prepare_dataset(gse):
                     st.warning(f"⚠️ Could not label from {colname}: {e}")
 
         # Manual column selection if auto fails
-            st.dataframe(pd.DataFrame({selected_col: values}).head(10))
             if labels.nunique() == 2:
                 labels.name = "label"
                 labels.to_csv(label_out)
-            if st.checkbox("🔍 Preview labels before proceeding"):
-                st.dataframe(pd.DataFrame({"Sample": labels.index, "Label": labels.values}))
+        # === OPTIONAL LABEL PREVIEW UI ===
+        if st.checkbox("🔍 Preview labels before proceeding"):
+            st.dataframe(pd.DataFrame({"Sample": labels.index, "Label": labels.values}))
+            st.warning("These labels will be used for training.")
+            if st.checkbox("✏️ Manually edit labels?", key="edit_labels"):
+                edited = st.data_editor(pd.DataFrame({"Sample": labels.index, "Label": labels.values}), num_rows="dynamic")
+                if "Label" in edited.columns and edited["Label"].nunique() == 2:
+                    labels = edited.set_index("Sample")["Label"]
+                    labels.to_csv(label_out)
+                    st.success("✅ Updated labels saved.")
+                else:
+                    st.error("❌ Edited labels must contain exactly two classes.")
                 st.warning("These labels will be used for training.")
                 if st.checkbox("✏️ Manually edit labels?", key="edit_labels"):
                     edited = st.data_editor(pd.DataFrame({"Sample": labels.index, "Label": labels.values}), num_rows="dynamic")
@@ -155,8 +184,18 @@ def download_and_prepare_dataset(gse):
                 if labels.nunique() == 2:
                     labels.name = "label"
                     labels.to_csv(label_out)
-            if st.checkbox("🔍 Preview labels before proceeding"):
-                st.dataframe(pd.DataFrame({"Sample": labels.index, "Label": labels.values}))
+        # === OPTIONAL LABEL PREVIEW UI ===
+        if st.checkbox("🔍 Preview labels before proceeding"):
+            st.dataframe(pd.DataFrame({"Sample": labels.index, "Label": labels.values}))
+            st.warning("These labels will be used for training.")
+            if st.checkbox("✏️ Manually edit labels?", key="edit_labels"):
+                edited = st.data_editor(pd.DataFrame({"Sample": labels.index, "Label": labels.values}), num_rows="dynamic")
+                if "Label" in edited.columns and edited["Label"].nunique() == 2:
+                    labels = edited.set_index("Sample")["Label"]
+                    labels.to_csv(label_out)
+                    st.success("✅ Updated labels saved.")
+                else:
+                    st.error("❌ Edited labels must contain exactly two classes.")
                 st.warning("These labels will be used for training.")
                 if st.checkbox("✏️ Manually edit labels?", key="edit_labels"):
                     edited = st.data_editor(pd.DataFrame({"Sample": labels.index, "Label": labels.values}), num_rows="dynamic")
@@ -177,13 +216,22 @@ def download_and_prepare_dataset(gse):
             st.warning("⚠️ Auto-labeling failed. Assigning default label 0 to all.")
             try:
                 st.warning("⚠️ Showing metadata preview (first 5 columns × 10 samples):")
-                st.dataframe(metadata.iloc[:, :5].head(10))
             except Exception as preview_err:
                 st.error(f"⚠️ Metadata preview failed: {preview_err}")
             labels = pd.Series([0] * df.shape[1], index=df.columns, name="label")
             labels.to_csv(label_out)
-            if st.checkbox("🔍 Preview labels before proceeding"):
-                st.dataframe(pd.DataFrame({"Sample": labels.index, "Label": labels.values}))
+        # === OPTIONAL LABEL PREVIEW UI ===
+        if st.checkbox("🔍 Preview labels before proceeding"):
+            st.dataframe(pd.DataFrame({"Sample": labels.index, "Label": labels.values}))
+            st.warning("These labels will be used for training.")
+            if st.checkbox("✏️ Manually edit labels?", key="edit_labels"):
+                edited = st.data_editor(pd.DataFrame({"Sample": labels.index, "Label": labels.values}), num_rows="dynamic")
+                if "Label" in edited.columns and edited["Label"].nunique() == 2:
+                    labels = edited.set_index("Sample")["Label"]
+                    labels.to_csv(label_out)
+                    st.success("✅ Updated labels saved.")
+                else:
+                    st.error("❌ Edited labels must contain exactly two classes.")
                 st.warning("These labels will be used for training.")
                 if st.checkbox("✏️ Manually edit labels?", key="edit_labels"):
                     edited = st.data_editor(pd.DataFrame({"Sample": labels.index, "Label": labels.values}), num_rows="dynamic")
@@ -233,10 +281,8 @@ if selected_domain:
             col1, col2 = st.columns(2)
             with col1:
                 st.markdown("**Curated Animal Datasets**")
-                st.dataframe(curated_df[curated_df["Organism"] != "Human"].reset_index(drop=True))
             with col2:
                 st.markdown("**Curated Human Datasets**")
-                st.dataframe(curated_df[curated_df["Organism"] == "Human"].reset_index(drop=True))
     except Exception as e:
         st.error(f"❌ Failed to load curated datasets: {e}")
 
@@ -253,10 +299,8 @@ if st.button("Run smart search"):
                 col1, col2 = st.columns(2)
                 with col1:
                     st.markdown("**Found Animal Datasets**")
-                    st.dataframe(search_results_df[search_results_df["Organism"] != "Homo sapiens"].reset_index(drop=True))
                 with col2:
                     st.markdown("**Found Human Datasets**")
-                    st.dataframe(search_results_df[search_results_df["Organism"] == "Homo sapiens"].reset_index(drop=True))
     except Exception as e:
         st.error(f"Search failed: {e}")
 
@@ -329,7 +373,6 @@ if not combined_df.empty:
                     raise ValueError("Returned data is empty or malformed.")
                 eval_dfs, meta = result
                 results = test_model_on_dataset(model, eval_dfs, meta)
-                st.dataframe(results)
             else:
                 st.warning("⚠️ No animal datasets selected.")
         except Exception as e:
