@@ -235,7 +235,7 @@ if not combined_df.empty:
                     st.info(f"✅ {gse} already exists")
 
         # Step 3: Train
-        # Step 3: Train
+import numpy as np
 st.markdown("## Step 3: Train Model")
 try:
     if human_gses:
