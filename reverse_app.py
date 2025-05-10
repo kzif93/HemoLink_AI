@@ -76,6 +76,7 @@ def download_and_prepare_dataset(gse):
 
     try:
         metadata = pd.DataFrame({gsm: sample.metadata for gsm, sample in geo.gsms.items()}).T
+        st.write("🧠 Available metadata columns:", list(metadata.columns))
 
         # === CUSTOM LABEL LOGIC FOR GSE22255 ===
         if gse.lower() == "gse22255":
