@@ -166,8 +166,18 @@ def train_model(X, y):
         return model, metrics
 
     except Exception as e:
+        
+        import traceback
+        st.error("❌ Training failed!")
+        st.write("📛 Exception type:", type(e).__name__)
+        st.write("📛 Exception message:", str(e))
+        st.write("🧪 y type:", type(y))
+        st.write("🧪 y[:5]:", y[:5] if hasattr(y, '__getitem__') else "Not indexable")
+        st.write("🧪 y_pred shape:", y_pred.shape if 'y_pred' in locals() else "not defined")
+        st.write("🧪 y_true shape:", y_true.shape if 'y_true' in locals() else "not defined")
+        st.text(traceback.format_exc())
         raise RuntimeError(f"Training failed: {e}")
-
+    
 # ---- STREAMLIT UI ----
 st.set_page_config(page_title="HemoLink_AI – Reverse Modeling", layout="wide")
 
