@@ -279,7 +279,7 @@ except Exception as e:
            
         # Step 4: Evaluate
     st.markdown("## Step 4: Evaluate on Animal Datasets")
-        try:
+    try:
             if animal_gses:
                 result = load_multiple_datasets(animal_gses)
                 if not result or len(result) != 2:
@@ -289,7 +289,7 @@ except Exception as e:
                 st.dataframe(results)
             else:
                 st.warning("⚠️ No animal datasets selected.")
-        except Exception as e:
+    except Exception as e:
             st.error(f"❌ Evaluation failed: {e}")
-else:
-    st.info("ℹ️ No datasets available to select.")
+    else:
+        st.info("ℹ️ No datasets available to select.")
