@@ -1,4 +1,3 @@
-
 import os
 import sys
 import streamlit as st
@@ -75,66 +74,20 @@ def download_and_prepare_dataset(gse):
         mapped.to_csv(out_path)
 
     try:
-        metadata = pd.DataFrame({gsm: sample.metadata for gsm, sample in geo.gsms.items()}).T
-        st.write("🧠 Available metadata columns:", list(metadata.columns))
+        sample_titles = pd.Series({gsm: sample.metadata.get("title", [""])[0] for gsm, sample in geo.gsms.items()})
+        labels = sample_titles.str.lower().map(lambda x: 1 if "pbmcs_is" in x else 0)
 
-        # === CUSTOM LABEL LOGIC FOR GSE22255 ===
-        # === SMART LABELING ===
-        label_found = False
-        for colname in ["title", "characteristics_ch1"]:
-            if colname in metadata.columns:
-                try:
-                    values = metadata[colname].astype(str).str.lower()
-                    labels = values.map(lambda x: 1 if "pbmcs_is" in x or "is" in x else 0)
-                    if labels.nunique() == 2:
-                        labels.name = "label"
-                        labels.to_csv(label_out)
-                        st.success(f"✅ Labels generated from {colname}.")
-                        return out_path
-                except Exception as e:
-                    st.warning(f"⚠️ Could not label from {colname}: {e}")
-
-        # Manual column selection if auto fails
-        selected_col = st.selectbox("🛠️ Select metadata column for labeling:", metadata.columns)
-        try:
-            values = metadata[selected_col].astype(str).str.lower()
-            labels = values.map(lambda x: 1 if "stroke" in x or "is" in x else 0)
-            st.dataframe(pd.DataFrame({selected_col: values}).head(10))
-            if labels.nunique() == 2:
-                labels.name = "label"
-                labels.to_csv(label_out)
-                st.success(f"✅ Labels generated from selected column: {selected_col}")
-                return out_path
-            else:
-                st.warning("⚠️ Still only one class found.")
-        except Exception as e:
-            st.error(f"❌ Failed to label from selected column: {e}")
-        success = False
-        for col in metadata.columns:
-            try:
-                values = metadata[col].astype(str).str.lower()
-                labels = values.map(lambda x: 1 if any(k in x for k in KEYWORDS) else 0)
-                if labels.nunique() == 2:
-                    labels.name = "label"
-                    labels.to_csv(label_out)
-                    print(f"[Auto-labeling] ✅ Used column: {col}")
-                    print(f"[Label distribution] {labels.value_counts().to_dict()}")
-                    success = True
-                    break
-            except Exception:
-                continue
-
-        if not success:
-            st.warning("⚠️ Auto-labeling failed. Assigning default label 0 to all.")
-            try:
-                st.warning("⚠️ Showing metadata preview (first 5 columns × 10 samples):")
-                st.dataframe(metadata.iloc[:, :5].head(10))
-            except Exception as preview_err:
-                st.error(f"⚠️ Metadata preview failed: {preview_err}")
+        if labels.nunique() == 2:
+            labels.name = "label"
+            labels.to_csv(label_out)
+            st.success("✅ Labels generated using sample titles.")
+            return out_path
+        else:
+            st.warning("⚠️ Only one class detected from sample titles. Defaulting to zeros.")
             labels = pd.Series([0] * df.shape[1], index=df.columns, name="label")
             labels.to_csv(label_out)
     except Exception as e:
-        print(f"[Auto-labeling failed] ❌ {e}")
+        st.error(f"❌ Labeling failed: {e}")
 
     return out_path
 
