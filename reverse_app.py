@@ -1,3 +1,4 @@
+
 import os
 import sys
 import streamlit as st
@@ -151,7 +152,7 @@ def train_model(X, y):
         y_pred = (preds > 0.5).astype(int)
         labels = unique_labels(y_true, y_pred)
 
-        report = classification_report(y_true, y_pred, labels=labels, output_dict=True)
+        report = classification_report(y_true, y_pred, output_dict=True)
 
         metrics = {
             "roc_auc": round(auc, 4),
@@ -161,7 +162,6 @@ def train_model(X, y):
 
     except Exception as e:
         raise RuntimeError(f"Training failed: {e}")
-
 
 # ---- STREAMLIT UI ----
 st.set_page_config(page_title="HemoLink_AI – Reverse Modeling", layout="wide")
