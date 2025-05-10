@@ -71,6 +71,7 @@ def download_and_prepare_dataset(gse):
         gpl_path = download_platform_annotation(gse)
         mapped = map_probes_to_genes(out_path, gpl_path)
         mapped = mapped.T
+        mapped.columns = df.index  # Ensure GSM IDs are preserved after transpose
         mapped.to_csv(out_path)
 
     try:
